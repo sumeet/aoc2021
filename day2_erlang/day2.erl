@@ -13,18 +13,7 @@ product(Sub) ->
   Sub#sub.horPos * Sub#sub.depth.
 
 part1() ->
-  Input =
-    case file:read_file("input") of
-      {ok, Content} ->
-        Content;
-      {error, _} ->
-        throw("Could not read input file")
-    end,
-  Lines =
-    string:split(
-      string:trim(Input), "\n", all),
-  string:split(
-    string:trim(Input), "\n", all),
+  Lines = read_lines(),
   FinalSub =
     lists:foldl(fun(Line, #sub{horPos = HorPos, depth = Depth} = Sub) ->
                    NextSub =
@@ -41,18 +30,7 @@ part1() ->
   io:fwrite("~w\n", [product(FinalSub)]).
 
 part2() ->
-  Input =
-    case file:read_file("input") of
-      {ok, Content} ->
-        Content;
-      {error, _} ->
-        throw("Could not read input file")
-    end,
-  Lines =
-    string:split(
-      string:trim(Input), "\n", all),
-  string:split(
-    string:trim(Input), "\n", all),
+  Lines = read_lines(),
   FinalSub =
     lists:foldl(fun(Line,
                     #sub{horPos = HorPos,
@@ -73,3 +51,13 @@ part2() ->
                 initSub(),
                 Lines),
   io:fwrite("~w\n", [product(FinalSub)]).
+
+read_lines() ->
+  Input =
+    case file:read_file("input") of
+      {ok, Content} ->
+        Content;
+      {error, _} ->
+        throw("Could not read input file")
+    end,
+    string:split(string:trim(Input), "\n", all).
