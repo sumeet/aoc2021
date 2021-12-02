@@ -4,17 +4,7 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "mix run",
-            "type": "shell",
-            "command": "mix run -e 'Day1.go()'",
-            "problemMatcher": [],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            }
-        },
-        {
-            "label": "erl",
+            "label": "erl day2.erl",
             "type": "shell",
             "command": "erl",
             "problemMatcher": [],
