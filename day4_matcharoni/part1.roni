@@ -11,7 +11,7 @@ pat bin_le_to_int { bits@[ANY] => {
   sum [(*bits << (#bits - (%bits + 1))) <- bits]
 }}
 pat calc_most_commons { sums@[ANY] =>  {
-  [*sums > (#readings / 2) <- sums]
+  [*sums >= (#readings / 2) <- sums]
 }}
 pat calc_least_commons { sums@[ANY] =>  {
   [*sums < (#readings / 2) <- sums]
@@ -32,4 +32,3 @@ gamma = calc_most_commons(sums)
 epsilon = calc_least_commons(sums)
 
 dbg(bin_le_to_int(gamma) * bin_le_to_int(epsilon))
-
