@@ -1,21 +1,17 @@
 pat bin { '0' => 0, '1' => 1 }
-pat reading { bins@[bin]{1+} ~ '\n' => bins }
-pat readings { lines@[reading] => lines }
-pat expand { (x@ANY, n@ANY) => { [x <- 0..n] } }
-pat sum { ns@[ANY] => {
+pat reading bins@[bin]{1+} ~ '\n' => bins
+pat readings lines@[reading] => lines
+pat expand (x@Int, n@Int) => [x <- 0..n]
+pat sum ns@[Int] => {
   acc = 0
   for ns { acc = acc + *ns }
   acc
-}}
-pat bin_le_to_int { bits@[ANY] => {
-  sum [(*bits << (#bits - (%bits + 1))) <- bits]
-}}
-pat calc_most_commons { sums@[ANY] =>  {
-  [*sums >= (#readings / 2) <- sums]
-}}
-pat calc_least_commons { sums@[ANY] =>  {
-  [*sums < (#readings / 2) <- sums]
-}}
+}
+pat bin_le_to_int bits@[Int] => {
+  sum [*bits << (#bits - (%bits + 1)) <- bits]
+}
+pat calc_most_commons sums@[Int] => [*sums >= (#readings / 2) <- sums]
+pat calc_least_commons sums@[Int] => [*sums < (#readings / 2) <- sums]
 
 input = read_to_string("./input")
 readings = readings(input)
