@@ -17,7 +17,6 @@ pat digit {
   '8' => 8,
   '9' => 9
 }
-pat ws_any [' '] => ' '
 pat num digits@[digit]{1+} => {
   sum [(*digits * (10 ** (#digits - (%digits + 1)))) <- digits]
 }
@@ -26,6 +25,7 @@ pat num digits@[digit]{1+} => {
 pat csnums [nums<@num ~ ','] ~ nums<@num => nums 
 
 // bingo cards section
+pat ws_any [' '] => ' '
 pat bingo_row [ws_any ~ nums<@num]{5} => { nums }
 pat bingo_card [rows<@bingo_row ~ '\n']{5} => { rows }
 
@@ -41,7 +41,7 @@ pat call_number (rows@ANY, n@Int) => {
 
 pat score_card rows@ANY => {
   acc = 0
-  [[if (**rows >= 0) { acc = acc + **rows } <- *rows] <- rows]
+  for rows { for *rows { if (**rows >= 0) { acc = acc + **rows } } }
   acc
 }
 
