@@ -1,0 +1,52 @@
+pat digit {
+  '0' => 0,
+  '1' => 1,
+  '2' => 2,
+  '3' => 3,
+  '4' => 4,
+  '5' => 5,
+  '6' => 6,
+  '7' => 7,
+  '8' => 8,
+  '9' => 9
+}
+pat sum { ns@[ANY] => {
+  acc = 0
+  for ns { acc = acc + *ns }
+  acc
+}}
+pat num digits@[digit]{1+} => {
+  sum [(*digits * (10 ** (#digits - (%digits + 1)))) <- digits]
+}
+pat csnums [nums<@num ~ ','] ~ nums<@num ~ '\n' => nums 
+
+sample = "3,4,3,1,2\n"
+all_fishes = csnums(sample)
+//all_fishes = csnums(read_to_string("./input"))
+total_count = 0
+
+cache = [0 <- 0..8]
+
+for all_fishes {
+  if (cache(*all_fishes) != 0) {
+    total_count += cache(*all_fishes)
+  } else {
+    fishes = [*all_fishes]
+    for i@(0..256) {
+      next_fishes = []
+      for fishes {
+        if (*fishes == 0) {
+          *fishes = 6
+          push(next_fishes, 8)
+        } else {
+          *fishes -= 1
+        }
+      }
+      for next_fishes { push(fishes, *next_fishes) }
+    }
+    cache(*all_fishes) = #fishes
+    total_count += #fishes
+  }
+}
+
+dbg(total_count)
