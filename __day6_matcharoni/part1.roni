@@ -20,11 +20,13 @@ pat num digits@[digit]{1+} => {
 }
 pat csnums [nums<@num ~ ','] ~ nums<@num ~ '\n' => nums 
 
-sample = "3,4,3,1,2"
-fishes = csnums(read_to_string("./input"))
+//sample = "3,4,3,1,2\n"
+sample = "3\n"
+fishes = csnums(sample)
+//fishes = csnums(read_to_string("/home/sumeet/aoc2021/day6_matcharoni/input"))
 
 for i@(0..80) {
-  dbg(%i)
+  dbg(%i, #fishes)
   next_fishes = []
   for fishes {
     if (*fishes == 0) {
