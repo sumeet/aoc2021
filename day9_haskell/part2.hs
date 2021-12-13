@@ -2,9 +2,10 @@
 
 import Control.Monad.Trans.Reader (Reader, ask, asks)
 import Data.Char (digitToInt)
-import Data.List (nub, sort)
+import Data.List (nub, partition, sort)
 import Data.List.Extra ((!?))
 import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Set (fromList, member)
 
 get :: Int -> Int -> [[a]] -> Maybe a
 get x y grid = do
@@ -18,7 +19,7 @@ basin grid x y = nub $ (x, y) : concatMap (uncurry $ basin grid) nextBasinPoints
     nextBasinPoints =
       mapMaybe
         ( \(nextVal, nextPoint) ->
-            if nextVal /= 9 && nextVal == val + 1 then Just nextPoint else Nothing
+            if nextVal /= 9 && nextVal > val then Just nextPoint else Nothing
         )
         $ adjacentCells x y grid
 
@@ -26,11 +27,7 @@ adjacentCells :: Int -> Int -> [[Int]] -> [(Int, (Int, Int))]
 adjacentCells x y grid = mapMaybe (\(x, y) -> (,(x, y)) <$> get x y grid) points
   where
     points =
-      [ (x + dx, y + dy)
-        | dx <- [-1, 0, 1],
-          dy <- [-1, 0, 1],
-          (dx, dy) /= (0, 0)
-      ]
+      [(x + dx, y + dy) | (dx, dy) <- [(-1, 0), (0, 1), (1, 0), (0, -1)]]
 
 withAdjacents :: [[Int]] -> [(Int, [Int], (Int, Int))]
 withAdjacents grid =
@@ -41,6 +38,13 @@ withAdjacents grid =
       | (y, row) <- zip [0 ..] grid
     ]
 
+mergeBasins :: [[(Int, Int)]] -> [[(Int, Int)]]
+mergeBasins (thisBasin : basins) = nub (thisBasin ++ concat hasCommon) : mergeBasins notHasCommon
+  where
+    (hasCommon, notHasCommon) = partition (any (`member` thisBasinSet)) basins
+    thisBasinSet = fromList thisBasin
+mergeBasins [] = []
+
 main :: IO ()
 main = do
   s <- readFile "./input"
@@ -49,7 +53,7 @@ main = do
         mapMaybe
           (\(n, adjs, (x, y)) -> if all (n <) adjs then Just (x, y) else Nothing)
           $ withAdjacents grid
-  let basinSizes = map (length . uncurry (basin grid)) lowPoints
-  print $ sort basinSizes
-
---print $ product $ take 3 $ reverse $ sort basinSizes
+  let basinPointss = map (uncurry (basin grid)) lowPoints
+  let basinSizes = map length basinPointss
+  print basinSizes
+  print $ product $ take 3 $ reverse $ sort basinSizes
