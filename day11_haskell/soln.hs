@@ -1,7 +1,7 @@
 import Data.Char (digitToInt)
-import Data.List (intercalate)
+import Data.List (findIndex, intercalate)
 import Data.List.Extra ((!?))
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, fromJust)
 import Debug.Trace (trace, traceShowId)
 
 untilStable :: Eq a => (a -> a) -> a -> a
@@ -54,8 +54,18 @@ nextGrid (grid, prevCount) =
 traceWith :: (a -> String) -> a -> a
 traceWith f x = trace (f x) x
 
+part1 :: [[Int]] -> IO ()
+part1 grid = print $ snd (iterate nextGrid (grid, 0) !! 100)
+
+part2 :: [[Int]] -> IO ()
+part2 grid = do
+  print $ fromJust $ findIndex (\(grid, _) -> all (== 0) $ concat grid) $ iterate nextGrid (grid, 0)
+
 main :: IO ()
 main = do
   s <- readFile "./input"
   let grid = map (map digitToInt) $ lines s
-  print $ snd (iterate nextGrid (grid, 0) !! 100)
+  putStrLn "Part 1:"
+  part1 grid
+  putStrLn "Part 2:"
+  part2 grid
