@@ -1,9 +1,10 @@
 import Data.Char (isLower, isUpper)
-import Data.List (intercalate, nub, partition)
+import Data.List (intercalate, nub, partition, sortOn)
 import Data.List.Extra (anySame, splitOn)
 import Data.Map (Map, (!), (!?))
 import qualified Data.Map as Map
 import Data.Maybe (fromJust, isNothing)
+import Data.Set (Set, fromList, toList)
 import Util (singleton)
 
 type CaveMap = Map String [String]
@@ -44,14 +45,14 @@ parseCaveMap s =
   Map.fromListWith (++) $
     concatMap
       ( \(src, dest) ->
-          [(src, [dest]) | src /= "end"]
+          [(src, [dest]) | src /= "end" && dest /= "start"]
             ++ ([(dest, [src]) | dest /= "end" && src /= "start"])
       )
       paths
   where
     paths = map (to2Tuple . splitOn "-") $ lines s
 
-allPaths :: CaveMap -> NextDests -> [[String]]
+allPaths :: CaveMap -> NextDests -> Set [String]
 allPaths caveMap nextDests =
   fst $
     until
@@ -62,7 +63,7 @@ allPaths caveMap nextDests =
                 partition
                   (\(_, nexts) -> isNothing nexts)
                   $ map (\path -> (path, next path)) ongoing
-           in ( ended ++ map fst nextEnded,
+           in ( ended <> fromList (fst <$> nextEnded),
                 concatMap
                   ( \(dests, finals) ->
                       map ((dests ++) . singleton) (fromJust finals)
@@ -70,7 +71,7 @@ allPaths caveMap nextDests =
                   nextOngoing
               )
       )
-      ([], [["start"]])
+      (fromList [], [["start"]])
   where
     next = nextDests caveMap
 
@@ -82,6 +83,6 @@ main = do
   s <- readFile "./input"
   let caveMap = parseCaveMap s
   putStrLn "Part 1:"
-  print $ length $ nub $ allPaths caveMap nextDestsPart1
+  print $ length $ allPaths caveMap nextDestsPart1
   putStrLn "Part 2:"
-  print $ length $ nub $ allPaths caveMap nextDestsPart2
+  print $ length $ allPaths caveMap nextDestsPart2
