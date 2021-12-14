@@ -59,7 +59,10 @@ part1 grid = print $ snd (iterate nextGrid (grid, 0) !! 100)
 
 part2 :: [[Int]] -> IO ()
 part2 grid = do
-  print $ fromJust $ findIndex (\(grid, _) -> all (== 0) $ concat grid) $ iterate nextGrid (grid, 0)
+  print $
+    fromJust $
+      findIndex (\(grid, _) -> all (== 0) $ concat grid) $
+        iterate nextGrid (grid, 0)
 
 main :: IO ()
 main = do
