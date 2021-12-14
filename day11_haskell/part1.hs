@@ -27,13 +27,15 @@ neighbors grid x y =
 incrementStep :: [[Int]] -> [[Int]]
 incrementStep grid = [[cell + 1 | cell <- row] | row <- grid]
 
-flashingStep :: [[Int]] -> [[Int]]
-flashingStep grid =
-  [ [ nextCell x y thisCell
-      | (x, thisCell) <- zip [0 ..] row
-    ]
-    | (y, row) <- zip [0 ..] grid
-  ]
+flashingStep :: ([[Int]], Int) -> ([[Int]], Int)
+flashingStep (grid, prevCount) =
+  ( [ [ nextCell x y thisCell
+        | (x, thisCell) <- zip [0 ..] row
+      ]
+      | (y, row) <- zip [0 ..] grid
+    ],
+    prevCount + length (filter (== -1) $ concat grid)
+  )
   where
     nextCell x y thisCell =
       if thisCell `elem` [0, -1]
@@ -44,21 +46,16 @@ flashingStep grid =
               next = thisCell + numFlashingNeighbors
            in if next > 9 then -1 else next
 
-zeroOutFlashes :: (Ord a, Num a) => [[a]] -> [[a]]
-zeroOutFlashes grid = [[max cell 0 | cell <- row] | row <- grid]
-
-nextGrid :: [[Int]] -> [[Int]]
-nextGrid = zeroOutFlashes . untilStable flashingStep . incrementStep
+nextGrid :: ([[Int]], Int) -> ([[Int]], Int)
+nextGrid (grid, prevCount) =
+  let grid' = incrementStep grid
+   in untilStable flashingStep (grid', prevCount)
 
 traceWith :: (a -> String) -> a -> a
 traceWith f x = trace (f x) x
 
 main :: IO ()
 main = do
-  s <- readFile "./sample"
+  s <- readFile "./input"
   let grid = map (map digitToInt) $ lines s
-  putStrLn $ dumpGrid grid
-  putStrLn ""
-  putStrLn $ dumpGrid $ nextGrid grid
-  putStrLn ""
-  putStrLn $ dumpGrid $ nextGrid $ nextGrid grid
+  print $ snd (iterate nextGrid (grid, 0) !! 100)
