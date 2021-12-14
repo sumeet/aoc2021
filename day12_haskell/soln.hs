@@ -52,18 +52,17 @@ parseCaveMap s =
   where
     paths = map (to2Tuple . splitOn "-") $ lines s
 
-allPaths :: CaveMap -> NextDests -> Set [String]
+allPaths :: CaveMap -> NextDests -> [[String]]
 allPaths caveMap nextDests =
   fst $
     until
       (\(_, ongoing) -> null ongoing)
       ( \(ended, ongoing) ->
-          let nextPaths = map (\path -> (path, next path)) ongoing
-              (nextEnded, nextOngoing) =
+          let (nextEnded, nextOngoing) =
                 partition
                   (\(_, nexts) -> isNothing nexts)
-                  $ map (\path -> (path, next path)) ongoing
-           in ( ended <> fromList (fst <$> nextEnded),
+                  $ map (\path -> (path, nextDests caveMap path)) ongoing
+           in ( ended ++ map fst nextEnded,
                 concatMap
                   ( \(dests, finals) ->
                       map ((dests ++) . singleton) (fromJust finals)
@@ -71,9 +70,7 @@ allPaths caveMap nextDests =
                   nextOngoing
               )
       )
-      (fromList [], [["start"]])
-  where
-    next = nextDests caveMap
+      ([], [["start"]])
 
 dumpPaths :: [[String]] -> String
 dumpPaths paths = intercalate "\n" (map (intercalate ",") paths) ++ "\n"
