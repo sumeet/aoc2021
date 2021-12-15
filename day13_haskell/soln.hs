@@ -51,7 +51,11 @@ parse s
 separate :: [Parsed] -> ([(Int, Int)], [Fold])
 separate =
   partitionEithers
-    . map (\case (Dot x y) -> Left (x, y); (Fold f) -> Right f)
+    . map
+      ( \case
+          (Dot x y) -> Left (x, y)
+          (Fold f) -> Right f
+      )
 
 main :: IO ()
 main = do
@@ -63,6 +67,7 @@ main = do
   let emptyGrid = replicate (maxY + 1) $ replicate (maxX + 1) False
   let startGrid = foldl (\nextGrid (x, y) -> update x y True nextGrid) emptyGrid dots
   let folded = fold (head folds) startGrid
-  --putStrLn $ dumpGrid folded
+  putStrLn "Part 1:"
   print $ sum $ concatMap (map fromEnum) folded
-  pure ()
+  putStrLn "Part 2:"
+  putStrLn $ dumpGrid $ foldl (flip fold) folded (tail folds)
