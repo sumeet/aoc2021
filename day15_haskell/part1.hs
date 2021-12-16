@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
 
 import Data.Bifunctor (first)
@@ -22,10 +23,13 @@ nextPaths :: [[Int]] -> (Int, (Int, Int)) -> [(Int, (Int, Int))]
 nextPaths grid (risk, pos) = map (first (risk +)) $ uncurry (neighbors grid) pos
 
 isComplete :: [[Int]] -> (Int, Int) -> Bool
-isComplete grid (x, y) = (y + 1 == length grid) && (x + 1 == length (head grid))
+isComplete grid (x, y) = y + 1 == length grid && x + 1 == length (head grid)
 
---score :: [[Int]] -> (Int, (Int, Int)) -> Int
-score grid (risk, (x, y)) = (1.5 * distanceFromEnd grid (x, y)) -- + risk
+score :: [[Int]] -> (Int, (Int, Int)) -> Float
+score grid (risk, (x, y)) = (3 * fromIntegral (distanceFromEnd grid (x, y)) :: Float) + fromIntegral risk
+
+-- score :: [[Int]] -> (Int, (Int, Int)) -> (Int, Int)
+-- score grid (risk, (x, y)) = (risk, distanceFromEnd grid (x, y))
 
 --score grid (risk, (x, y)) = risk * max 1 (distanceFromEnd grid (x, y))
 
@@ -53,8 +57,8 @@ search grid cur =
     nexts = nextPaths grid cur
 
 searchUntilComplete :: [[Int]] -> [(Int, (Int, Int))] -> (Int, (Int, Int))
-searchUntilComplete grid (q : qs) = case search grid (q) of
-  --Left nexts -> searchUntilComplete grid $ traceWith (show . appendScore grid) $ sortOn (score grid) $ nexts ++ qs
+searchUntilComplete grid (q : qs) = case search grid q of
+  -- Left nexts -> searchUntilComplete grid $ traceWith (show . appendScore grid) $ sortOn (score grid) $ nexts ++ qs
   Left nexts -> searchUntilComplete grid $ sortOn (score grid) $ nexts ++ qs
   Right completes -> head $ sortOn (score grid) completes
 searchUntilComplete _ [] = error "no paths"
