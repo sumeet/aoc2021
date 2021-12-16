@@ -3,13 +3,35 @@
 
 import Data.Bifunctor (first)
 import Data.Char (digitToInt)
-import Data.List (sortOn)
+import Data.List (intercalate, sortOn, transpose, zip5)
 import Data.List.Extra ((!?))
 import Data.Maybe (fromJust, mapMaybe)
 import Data.PSQueue (Binding ((:->)))
 import qualified Data.PSQueue as PSQ
 import qualified Data.Set as Set
 import Debug.Trace (trace, traceShowId)
+
+dumpGrid :: [[Int]] -> String
+dumpGrid = unlines . map (intercalate "" . map show)
+
+newRisk :: Int -> Int -> Int
+newRisk oldRisk factor = ((oldRisk - 1 + factor) `mod` 9) + 1
+
+raise :: Int -> [[Int]] -> [[Int]]
+raise factor = map (map (newRisk factor))
+
+hugeGrid :: [[Int]] -> [[Int]]
+hugeGrid grid =
+  concat
+    [ extendGridsRightward [raise 0 grid, raise 1 grid, raise 2 grid, raise 3 grid, raise 4 grid],
+      extendGridsRightward [raise 1 grid, raise 2 grid, raise 3 grid, raise 4 grid, raise 5 grid],
+      extendGridsRightward [raise 2 grid, raise 3 grid, raise 4 grid, raise 5 grid, raise 6 grid],
+      extendGridsRightward [raise 3 grid, raise 4 grid, raise 5 grid, raise 6 grid, raise 7 grid],
+      extendGridsRightward [raise 4 grid, raise 5 grid, raise 6 grid, raise 7 grid, raise 8 grid]
+    ]
+
+extendGridsRightward :: [[[a]]] -> [[a]]
+extendGridsRightward grids = foldl (foldl (zipWith (++))) (head grids) [tail grids]
 
 get :: Int -> Int -> [[a]] -> Maybe a
 get x y grid = (!? x) =<< grid !? y
@@ -76,5 +98,5 @@ searchUntilComplete seen grid q = case search grid next of
 main :: IO ()
 main = do
   s <- readFile "./input"
-  let grid = map (map digitToInt) $ lines s
+  let grid = hugeGrid $ map (map digitToInt) $ lines s
   print $ searchUntilComplete Set.empty grid $ insert grid PSQ.empty (0, (0, 0))
