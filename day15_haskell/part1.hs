@@ -6,6 +6,7 @@ import Data.Char (digitToInt)
 import Data.List (sortOn)
 import Data.List.Extra ((!?))
 import Data.Maybe (mapMaybe)
+import qualified Data.Set as Set
 import Debug.Trace (trace, traceShowId)
 
 type Cur = ((Int, Int), Int)
@@ -25,11 +26,11 @@ nextPaths grid (risk, pos) = map (first (risk +)) $ uncurry (neighbors grid) pos
 isComplete :: [[Int]] -> (Int, Int) -> Bool
 isComplete grid (x, y) = y + 1 == length grid && x + 1 == length (head grid)
 
-score :: [[Int]] -> (Int, (Int, Int)) -> Float
-score grid (risk, (x, y)) = (3 * fromIntegral (distanceFromEnd grid (x, y)) :: Float) + fromIntegral risk
+-- score :: [[Int]] -> (Int, (Int, Int)) -> Float
+-- score grid (risk, (x, y)) = (2.0 * fromIntegral (distanceFromEnd grid (x, y)) :: Float) + fromIntegral risk
 
--- score :: [[Int]] -> (Int, (Int, Int)) -> (Int, Int)
--- score grid (risk, (x, y)) = (risk, distanceFromEnd grid (x, y))
+score :: [[Int]] -> (Int, (Int, Int)) -> (Int, Int)
+score grid (risk, (x, y)) = (risk, distanceFromEnd grid (x, y))
 
 --score grid (risk, (x, y)) = risk * max 1 (distanceFromEnd grid (x, y))
 
@@ -56,15 +57,18 @@ search grid cur =
     completes = filter (isComplete grid . snd) nexts
     nexts = nextPaths grid cur
 
-searchUntilComplete :: [[Int]] -> [(Int, (Int, Int))] -> (Int, (Int, Int))
-searchUntilComplete grid (q : qs) = case search grid q of
+searchUntilComplete :: Set.Set (Int, Int) -> [[Int]] -> [(Int, (Int, Int))] -> (Int, (Int, Int))
+searchUntilComplete seen grid (q : qs) = case search grid q of
   -- Left nexts -> searchUntilComplete grid $ traceWith (show . appendScore grid) $ sortOn (score grid) $ nexts ++ qs
-  Left nexts -> searchUntilComplete grid $ sortOn (score grid) $ nexts ++ qs
+  Left nexts ->
+    searchUntilComplete (Set.insert (snd q) seen) grid $
+      sortOn (score grid) $
+        filter ((`Set.notMember` seen) . snd) nexts ++ qs
   Right completes -> head $ sortOn (score grid) completes
-searchUntilComplete _ [] = error "no paths"
+searchUntilComplete _ _ [] = error "no paths"
 
 main :: IO ()
 main = do
   s <- readFile "./input"
   let grid = map (map digitToInt) $ lines s
-  print $ searchUntilComplete grid [(0, (0, 0))]
+  print $ searchUntilComplete Set.empty grid [(0, (0, 0))]
