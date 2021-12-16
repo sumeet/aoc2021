@@ -5,7 +5,9 @@ import Data.Bifunctor (first)
 import Data.Char (digitToInt)
 import Data.List (sortOn)
 import Data.List.Extra ((!?))
-import Data.Maybe (mapMaybe)
+import Data.Maybe (fromJust, mapMaybe)
+import Data.PSQueue (Binding ((:->)))
+import qualified Data.PSQueue as PSQ
 import qualified Data.Set as Set
 import Debug.Trace (trace, traceShowId)
 
@@ -57,18 +59,30 @@ search grid cur =
     completes = filter (isComplete grid . snd) nexts
     nexts = nextPaths grid cur
 
-searchUntilComplete :: Set.Set (Int, Int) -> [[Int]] -> [(Int, (Int, Int))] -> (Int, (Int, Int))
-searchUntilComplete seen grid (q : qs) = case search grid q of
+type Q = PSQ.PSQ (Int, Int) (Int, (Int, Int))
+
+getMinNotInSet :: Set.Set (Int, Int) -> Q -> ((Int, (Int, Int)), Q)
+getMinNotInSet seen q =
+  if pos `Set.notMember` seen
+    then (next, nextQ)
+    else getMinNotInSet seen nextQ
+  where
+    (_ :-> next@(risk, pos), nextQ) = fromJust $ PSQ.minView q
+
+insert :: [[Int]] -> Q -> (Int, (Int, Int)) -> Q
+insert grid q item = PSQ.insert (score grid item) item q
+
+searchUntilComplete :: Set.Set (Int, Int) -> [[Int]] -> Q -> (Int, (Int, Int))
+searchUntilComplete seen grid q = case search grid next of
   -- Left nexts -> searchUntilComplete grid $ traceWith (show . appendScore grid) $ sortOn (score grid) $ nexts ++ qs
   Left nexts ->
-    searchUntilComplete (Set.insert (snd q) seen) grid $
-      sortOn (score grid) $
-        filter ((`Set.notMember` seen) . snd) nexts ++ qs
+    searchUntilComplete (Set.insert pos seen) grid $ foldl (insert grid) nextQ nexts
   Right completes -> head $ sortOn (score grid) completes
-searchUntilComplete _ _ [] = error "no paths"
+  where
+    (next@(risk, pos), nextQ) = getMinNotInSet seen q
 
 main :: IO ()
 main = do
   s <- readFile "./input"
   let grid = map (map digitToInt) $ lines s
-  print $ searchUntilComplete Set.empty grid [(0, (0, 0))]
+  print $ searchUntilComplete Set.empty grid $ insert grid PSQ.empty (0, (0, 0))
