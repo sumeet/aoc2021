@@ -59,7 +59,7 @@ search grid cur =
     completes = filter (isComplete grid . snd) nexts
     nexts = nextPaths grid cur
 
-type Q = PSQ.PSQ (Int, Int) (Int, (Int, Int))
+type Q = PSQ.PSQ ((Int, Int), (Int, Int)) (Int, (Int, Int))
 
 getMinNotInSet :: Set.Set (Int, Int) -> Q -> ((Int, (Int, Int)), Q)
 getMinNotInSet seen q =
@@ -70,7 +70,7 @@ getMinNotInSet seen q =
     (_ :-> next@(risk, pos), nextQ) = fromJust $ PSQ.minView q
 
 insert :: [[Int]] -> Q -> (Int, (Int, Int)) -> Q
-insert grid q item = PSQ.insert (score grid item) item q
+insert grid q item@(_, pos) = PSQ.insert (score grid item, pos) item q
 
 searchUntilComplete :: Set.Set (Int, Int) -> [[Int]] -> Q -> (Int, (Int, Int))
 searchUntilComplete seen grid q = case search grid next of
