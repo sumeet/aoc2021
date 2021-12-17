@@ -60,13 +60,15 @@ uint64_t parse_literal_body() {
     return acc;
 }
 
-void parse_operator_body() {
+void parse_operator_body(uint8_t type_id) {
     uint64_t length_type_id = consume_bits(1);
+    size_t num_subpackets = 0;
+    uint64_t subpackets[100];
     if (length_type_id == 0) {
         uint64_t length_of_subpackets = consume_bits(15);
         size_t current_cursor = input_cursor_bits();
         while (input_cursor_bits() - current_cursor < length_of_subpackets) {
-            parse_packet();
+            subpackets[num_subpackets++] = parse_packet();
         }
         if (input_cursor_bits() - current_cursor != length_of_subpackets) {
             printf("Expected to consume %lu bits, but consumed %lu bits\n",
@@ -74,10 +76,8 @@ void parse_operator_body() {
             panic("operator innards length mismatch");
         }
     } else {
-        uint64_t number_of_subpackets = consume_bits(11);
-        while (number_of_subpackets > 0) {
-            parse_packet();
-            number_of_subpackets--;
+        for (uint64_t i = consume_bits(11); i > 0; i--) {
+            subpackets[num_subpackets++] = parse_packet();
         }
     }
 }
@@ -95,7 +95,7 @@ uint64_t parse_packet() {
     if (type_id == 4) {
         parse_literal_body();
     } else {
-        parse_operator_body();
+        parse_operator_body(type_id);
     }
 }
 
