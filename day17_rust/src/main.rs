@@ -14,7 +14,13 @@ lazy_static! {
 }
 
 fn main() {
-    let part1 = (-10000..=10000)
+    // part1();
+    part2();
+}
+
+#[allow(dead_code)]
+fn part1() {
+    let answer = (-10000..=10000)
         .into_par_iter()
         .filter_map(|x| {
             (-10000..=10000)
@@ -24,7 +30,20 @@ fn main() {
         })
         .max()
         .unwrap();
-    dbg!(part1);
+    dbg!(answer);
+}
+
+fn part2() {
+    let answer = (-10000..=10000)
+        .into_par_iter()
+        .map(|x| {
+            (-10000..=10000)
+                .into_par_iter()
+                .filter_map(|y| check(x, y))
+                .count()
+        })
+        .sum::<usize>();
+    dbg!(answer);
 }
 
 fn check(x: isize, y: isize) -> Option<isize> {
