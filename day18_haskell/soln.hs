@@ -3,7 +3,8 @@
 import Control.Monad (foldM, replicateM)
 import Data.Bifunctor (first, second)
 import Data.Char (digitToInt, isDigit)
-import Data.Maybe (fromJust, fromMaybe, isJust, isNothing)
+import Data.Either.Extra (fromLeft')
+import Data.Maybe (fromJust)
 
 data Pair = Scalar Int | Pair Pair Pair deriving (Show)
 
@@ -54,7 +55,9 @@ parseDigit (c : cs)
   | otherwise = Nothing
 parseDigit [] = Nothing
 
-type Reduction a = Either a a
+data Reduced a = Exploded (a, Int) | Split (a, Int)
+
+type Reduction a = Either (Reduced a) a
 
 pattern Reduced :: a -> Reduction a
 pattern Reduced a = Left a
@@ -71,19 +74,27 @@ reduce n (Pair a b) = case nextReduce a of
   Unmodified a' -> Pair a' <$> nextReduce b
   where
     nextReduce el =
-      fromMaybe
+      maybe
         (reduce (n + 1) el)
-        $ Reduced <$> tryExplode n el `orElse` trySplit el
+        Reduced
+        (tryExplode n el `orElse` trySplit el)
 
 tryExplode :: Int -> Pair -> Maybe Pair
 tryExplode _ (Scalar _) = Nothing
 tryExplode n (Pair a b)
   | n < 3 = Nothing
+  | otherwise = Just $ Scalar 0
 
 trySplit :: Pair -> Maybe Pair
-trySplit = error "not implemented"
+trySplit _ = Nothing
+
+-- main :: IO ()
+-- main = do
+--   pairss <- map parseLine . lines <$> readFile "./sample"
+--   putStrLn $ unlines $ map dump pairss
 
 main :: IO ()
 main = do
-  pairss <- map parseLine . lines <$> readFile "./sample"
-  putStrLn $ unlines $ map dump pairss
+  let pair = parseLine "[[[[[9,8],1],2],3],4]"
+  putStrLn $ dump pair
+  putStrLn $ dump $ fromLeft' $ reduce 0 pair
