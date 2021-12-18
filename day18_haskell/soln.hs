@@ -57,6 +57,11 @@ parseDigit [] = Nothing
 
 data Reduced a = Exploded (a, Int) | Split (a, Int) | Contained a deriving (Show)
 
+instance Functor Reduced where
+  fmap f (Exploded (a, n)) = Exploded (f a, n)
+  fmap f (Split (a, n)) = Split (f a, n)
+  fmap f (Contained a) = Contained $ f a
+
 type ReductionMaybe a = Either (Reduced a) a
 
 pattern Reduced :: Reduced a -> ReductionMaybe a
@@ -67,12 +72,17 @@ pattern Unmodified a = Right a
 
 {-# COMPLETE Reduced, Unmodified #-}
 
+applyReductionL :: Reduced Pair -> Pair -> Reduced Pair
+applyReductionL (Exploded (a, n)) (Scalar b') = Contained $ Pair a $ Scalar (b' + n)
+-- TODO: not sure if this is right...
+applyReductionL (Exploded (a, n)) (Pair ba bb) = Pair a <$> applyReductionL (Exploded (ba, n)) bb
+applyReductionL (Split (a, n)) b = Contained $ Pair a b
+applyReductionL (Contained a) b = Contained $ Pair a b
+
 reduce :: Int -> Pair -> ReductionMaybe Pair
 reduce _ (Scalar a) = Unmodified $ Scalar a
 reduce n (Pair a b) = case nextReduce a of
-  Reduced (Exploded (a', n)) -> Reduced $ Contained $ Pair a' b
-  Reduced (Split (a', n)) -> undefined
-  Reduced (Contained a) -> Reduced $ Contained $ Pair a b
+  Reduced reduced -> Reduced $ applyReductionL reduced b
   Unmodified a' -> Pair a' <$> nextReduce b
   where
     nextReduce el =
@@ -83,9 +93,10 @@ reduce n (Pair a b) = case nextReduce a of
 
 tryExplode :: Int -> Pair -> Maybe (Reduced Pair)
 tryExplode _ (Scalar _) = Nothing
-tryExplode n (Pair a b)
+tryExplode n (Pair (Scalar a) (Scalar b))
   | n < 3 = Nothing
-  | otherwise = Just $ Exploded (Scalar 0, n)
+  | otherwise = Just $ Exploded (Scalar 0, a)
+tryExplode n _ = Nothing
 
 trySplit :: Pair -> Maybe (Reduced Pair)
 trySplit _ = Nothing
