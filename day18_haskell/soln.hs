@@ -55,22 +55,24 @@ parseDigit (c : cs)
   | otherwise = Nothing
 parseDigit [] = Nothing
 
-data Reduced a = Exploded (a, Int) | Split (a, Int)
+data Reduced a = Exploded (a, Int) | Split (a, Int) | Contained a deriving (Show)
 
-type Reduction a = Either (Reduced a) a
+type ReductionMaybe a = Either (Reduced a) a
 
-pattern Reduced :: a -> Reduction a
+pattern Reduced :: Reduced a -> ReductionMaybe a
 pattern Reduced a = Left a
 
-pattern Unmodified :: a -> Reduction a
+pattern Unmodified :: a -> ReductionMaybe a
 pattern Unmodified a = Right a
 
 {-# COMPLETE Reduced, Unmodified #-}
 
-reduce :: Int -> Pair -> Reduction Pair
+reduce :: Int -> Pair -> ReductionMaybe Pair
 reduce _ (Scalar a) = Unmodified $ Scalar a
 reduce n (Pair a b) = case nextReduce a of
-  Reduced a' -> Reduced $ Pair a' b
+  Reduced (Exploded (a', n)) -> Reduced $ Contained $ Pair a' b
+  Reduced (Split (a', n)) -> undefined
+  Reduced (Contained a) -> Reduced $ Contained $ Pair a b
   Unmodified a' -> Pair a' <$> nextReduce b
   where
     nextReduce el =
@@ -79,14 +81,20 @@ reduce n (Pair a b) = case nextReduce a of
         Reduced
         (tryExplode n el `orElse` trySplit el)
 
-tryExplode :: Int -> Pair -> Maybe Pair
+tryExplode :: Int -> Pair -> Maybe (Reduced Pair)
 tryExplode _ (Scalar _) = Nothing
 tryExplode n (Pair a b)
   | n < 3 = Nothing
-  | otherwise = Just $ Scalar 0
+  | otherwise = Just $ Exploded (Scalar 0, n)
 
-trySplit :: Pair -> Maybe Pair
+trySplit :: Pair -> Maybe (Reduced Pair)
 trySplit _ = Nothing
+
+fromReduced :: ReductionMaybe a -> a
+fromReduced (Unmodified a) = a
+fromReduced (Reduced (Contained a)) = a
+fromReduced (Reduced (Exploded (a, n))) = a
+fromReduced (Reduced (Split (a, n))) = a
 
 -- main :: IO ()
 -- main = do
@@ -97,4 +105,4 @@ main :: IO ()
 main = do
   let pair = parseLine "[[[[[9,8],1],2],3],4]"
   putStrLn $ dump pair
-  putStrLn $ dump $ fromLeft' $ reduce 0 pair
+  putStrLn $ dump $ fromReduced $ reduce 0 pair
