@@ -5,7 +5,7 @@ import Data.Bifunctor (first, second)
 import Data.Char (digitToInt, isDigit)
 import Data.Either.Extra (fromLeft')
 import Data.Maybe (fromJust)
-import Debug.Trace (trace)
+import Debug.Trace (trace, traceShowId)
 
 data Pair = Scalar Int | Pair Pair Pair deriving (Show, Eq)
 
@@ -56,11 +56,10 @@ parseDigit (c : cs)
   | otherwise = Nothing
 parseDigit [] = Nothing
 
-data Reduced a = Exploded (a, Maybe Int, Maybe Int) | Split a | Contained a deriving (Show)
+data Reduced a = Exploded (a, Maybe Int, Maybe Int) | Contained a deriving (Show)
 
 instance Functor Reduced where
   fmap f (Exploded (a, n, m)) = Exploded (f a, n, m)
-  fmap f (Split a) = Split $ f a
   fmap f (Contained a) = Contained $ f a
 
 type ReductionMaybe a = Either (Reduced a) a
@@ -83,7 +82,6 @@ applyReductionL (Exploded (a, Just n, Nothing)) (Scalar b) =
 applyReductionL (Exploded (a, Nothing, Nothing)) b = Contained $ Pair a b
 applyReductionL (Exploded (a, n, m)) (Pair ba bb) =
   Pair a <$> applyReductionR ba (Exploded (bb, m, Nothing))
-applyReductionL (Split a) b = Contained $ Pair a b
 applyReductionL (Contained a) b = Contained $ Pair a b
 
 applyReductionR :: Pair -> Reduced Pair -> Reduced Pair
@@ -95,8 +93,7 @@ applyReductionR (Scalar a) (Exploded (b, Nothing, Just m)) =
   Exploded (Pair (Scalar a) b, Nothing, Just m)
 applyReductionR a (Exploded (b, Nothing, Nothing)) = Contained $ Pair a b
 applyReductionR (Pair aa ab) (Exploded (b, n, m)) =
-  flip Pair b <$> applyReductionL (Exploded (aa, n, m)) ab
-applyReductionR a (Split b) = Contained $ Pair a b
+  flip Pair b <$> applyReductionL (Exploded (aa, Nothing, n)) ab
 applyReductionR a (Contained b) = Contained $ Pair a b
 
 reduce :: Int -> Pair -> ReductionMaybe Pair
@@ -105,7 +102,7 @@ reduce n (Pair a b) = case nextReduce a of
   Reduced reduced -> Reduced $ applyReductionL reduced b
   Unmodified a' ->
     ( case nextReduce b of
-        Reduced reduced -> Reduced $ applyReductionR a' reduced
+        Reduced reduced -> Reduced $ applyReductionR a' (traceShowId reduced)
         Unmodified b' -> Unmodified (Pair a' b')
     )
   where
@@ -127,7 +124,7 @@ divRoundUp a b = (a + b - 1) `div` b
 
 trySplit :: Pair -> Maybe (Reduced Pair)
 trySplit (Scalar a)
-  | a >= 10 = Just $ Split $ Pair (Scalar (a `div` 2)) $ Scalar (a `divRoundUp` 2)
+  | a >= 10 = Just $ Contained $ Pair (Scalar (a `div` 2)) $ Scalar (a `divRoundUp` 2)
   | otherwise = Nothing
 trySplit _ = Nothing
 
@@ -135,7 +132,6 @@ fromReduced :: ReductionMaybe a -> a
 fromReduced (Unmodified a) = a
 fromReduced (Reduced (Contained a)) = a
 fromReduced (Reduced (Exploded (a, n, m))) = a
-fromReduced (Reduced (Split a)) = a
 
 traceWith :: (a -> String) -> a -> a
 traceWith f x = trace (f x) x
@@ -158,7 +154,7 @@ main = do
 
 -- main :: IO ()
 -- main = do
---   let pair = parseLine "[[[[0,7],4],[15,[0,13]]],[1,1]]"
+--   let pair = parseLine "[7,[6,[5,[4,[3,2]]]]]"
 --   putStrLn $ dump pair
 --   print $ reduce 0 pair
 --   putStrLn $ dump $ fromReduced $ reduce 0 pair
