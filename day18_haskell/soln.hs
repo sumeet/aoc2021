@@ -138,7 +138,6 @@ fromReduced (Reduced (Split (a, n))) = a
 
 main :: IO ()
 main = do
-  let pair = parseLine "[[[[[9,8],1],2],3],4]"
-  let pair = parseLine "[[6,[5,[4,[3,2]]]],1]"
+  let pair = parseLine "[[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]]"
   putStrLn $ dump pair
   putStrLn $ dump $ fromReduced $ reduce 0 pair
