@@ -7,7 +7,7 @@ import Data.Either.Extra (fromLeft')
 import Data.Maybe (fromJust)
 import Debug.Trace (trace)
 
-data Pair = Scalar Int | Pair Pair Pair deriving (Show)
+data Pair = Scalar Int | Pair Pair Pair deriving (Show, Eq)
 
 orElse :: Maybe a -> Maybe a -> Maybe a
 orElse (Just a) b = Just a
@@ -137,14 +137,28 @@ fromReduced (Reduced (Contained a)) = a
 fromReduced (Reduced (Exploded (a, n, m))) = a
 fromReduced (Reduced (Split a)) = a
 
--- main :: IO ()
--- main = do
---   pairss <- map parseLine . lines <$> readFile "./sample"
---   putStrLn $ unlines $ map dump pairss
+traceWith :: (a -> String) -> a -> a
+traceWith f x = trace (f x) x
+
+untilStable :: Eq a => (a -> a) -> a -> a
+untilStable f x = if x == x' then x else untilStable f x'
+  where
+    x' = f x
+
+addApplyReductions :: Pair -> Pair -> Pair
+addApplyReductions a b =
+  untilStable
+    (fromReduced . reduce 0 . traceWith dump)
+    $ Pair a b
 
 main :: IO ()
 main = do
-  let pair = parseLine "[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]"
-  putStrLn $ dump pair
-  print $ reduce 0 pair
-  putStrLn $ dump $ fromReduced $ reduce 0 pair
+  pairss <- map parseLine . lines <$> readFile "./sample"
+  putStrLn $ dump $ foldl1 addApplyReductions pairss
+
+-- main :: IO ()
+-- main = do
+--   let pair = parseLine "[[[[0,7],4],[15,[0,13]]],[1,1]]"
+--   putStrLn $ dump pair
+--   print $ reduce 0 pair
+--   putStrLn $ dump $ fromReduced $ reduce 0 pair
