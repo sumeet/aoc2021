@@ -82,8 +82,7 @@ applyReductionL (Exploded (a, Just n, Nothing)) (Scalar b) =
   Exploded (Pair a $ Scalar b, Just n, Nothing)
 applyReductionL (Exploded (a, Nothing, Nothing)) b = Contained $ Pair a b
 applyReductionL (Exploded (a, n, m)) (Pair ba bb) =
-  -- we kill the `m` because we got all the way out and weren't able to apply it
-  Pair a <$> applyReductionR ba (Exploded (bb, Nothing, n))
+  Pair a <$> applyReductionR ba (Exploded (bb, m, Nothing))
 applyReductionL (Split a) b = Contained $ Pair a b
 applyReductionL (Contained a) b = Contained $ Pair a b
 
