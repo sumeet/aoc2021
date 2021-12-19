@@ -56,11 +56,11 @@ parseDigit (c : cs)
   | otherwise = Nothing
 parseDigit [] = Nothing
 
-data Reduced a = Exploded (a, Maybe Int, Maybe Int) | Split (a, Int) | Contained a deriving (Show)
+data Reduced a = Exploded (a, Maybe Int, Maybe Int) | Split a | Contained a deriving (Show)
 
 instance Functor Reduced where
   fmap f (Exploded (a, n, m)) = Exploded (f a, n, m)
-  fmap f (Split (a, n)) = Split (f a, n)
+  fmap f (Split a) = Split $ f a
   fmap f (Contained a) = Contained $ f a
 
 type ReductionMaybe a = Either (Reduced a) a
@@ -82,8 +82,8 @@ applyReductionL (Exploded (a, Just n, Nothing)) (Scalar b) =
   Exploded (Pair a $ Scalar b, Just n, Nothing)
 applyReductionL (Exploded (a, Nothing, Nothing)) b = Contained $ Pair a b
 applyReductionL (Exploded (a, n, m)) (Pair ba bb) =
-  Pair a <$> applyReductionL (Exploded (ba, n, m)) bb
-applyReductionL (Split (a, n)) b = Contained $ Pair a b
+  Pair a <$> applyReductionR ba (Exploded (bb, m, n))
+applyReductionL (Split a) b = Contained $ Pair a b
 applyReductionL (Contained a) b = Contained $ Pair a b
 
 applyReductionR :: Pair -> Reduced Pair -> Reduced Pair
@@ -96,7 +96,7 @@ applyReductionR (Scalar a) (Exploded (b, Nothing, Just m)) =
 applyReductionR a (Exploded (b, Nothing, Nothing)) = Contained $ Pair a b
 applyReductionR (Pair aa ab) (Exploded (b, n, m)) =
   flip Pair b <$> applyReductionR aa (Exploded (ab, n, m))
-applyReductionR a (Split (b, n)) = Contained $ Pair a b
+applyReductionR a (Split b) = Contained $ Pair a b
 applyReductionR a (Contained b) = Contained $ Pair a b
 
 reduce :: Int -> Pair -> ReductionMaybe Pair
@@ -122,14 +122,20 @@ tryExplode n (Pair (Scalar a) (Scalar b))
   | otherwise = Just $ Exploded (Scalar 0, Just a, Just b)
 tryExplode n _ = Nothing
 
+divRoundUp :: Int -> Int -> Int
+divRoundUp a b = (a + b - 1) `div` b
+
 trySplit :: Pair -> Maybe (Reduced Pair)
+trySplit (Scalar a)
+  | a >= 10 = Just $ Split $ Pair (Scalar (a `div` 2)) $ Scalar (a `divRoundUp` 2)
+  | otherwise = Nothing
 trySplit _ = Nothing
 
 fromReduced :: ReductionMaybe a -> a
 fromReduced (Unmodified a) = a
 fromReduced (Reduced (Contained a)) = a
 fromReduced (Reduced (Exploded (a, n, m))) = a
-fromReduced (Reduced (Split (a, n))) = a
+fromReduced (Reduced (Split a)) = a
 
 -- main :: IO ()
 -- main = do
@@ -138,6 +144,7 @@ fromReduced (Reduced (Split (a, n))) = a
 
 main :: IO ()
 main = do
-  let pair = parseLine "[[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]]"
+  let pair = parseLine "[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]"
   putStrLn $ dump pair
+  print $ reduce 0 pair
   putStrLn $ dump $ fromReduced $ reduce 0 pair
