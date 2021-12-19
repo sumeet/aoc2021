@@ -73,11 +73,20 @@ pattern Unmodified a = Right a
 {-# COMPLETE Reduced, Unmodified #-}
 
 applyReductionL :: Reduced Pair -> Pair -> Reduced Pair
-applyReductionL (Exploded (a, _, m)) (Scalar b') = Contained $ Pair a $ Scalar (b' + m)
--- TODO: not sure if this is right...
-applyReductionL (Exploded (a, n, m)) (Pair ba bb) = Pair a <$> applyReductionL (Exploded (ba, n, m)) bb
+applyReductionL (Exploded (a, _, m)) (Scalar b') =
+  Contained $ Pair a $ Scalar (b' + m)
+applyReductionL (Exploded (a, n, m)) (Pair ba bb) =
+  Pair a <$> applyReductionL (Exploded (ba, n, m)) bb
 applyReductionL (Split (a, n)) b = Contained $ Pair a b
 applyReductionL (Contained a) b = Contained $ Pair a b
+
+applyReductionR :: Pair -> Reduced Pair -> Reduced Pair
+applyReductionR (Scalar a') (Exploded (b, n, _)) =
+  Contained $ Pair (Scalar (a' + n)) b
+applyReductionR (Pair aa ab) (Exploded (b, n, m)) =
+  flip Pair b <$> applyReductionR aa (Exploded (ab, n, m))
+applyReductionR a (Split (b, n)) = Contained $ Pair a b
+applyReductionR a (Contained b) = Contained $ Pair a b
 
 reduce :: Int -> Pair -> ReductionMaybe Pair
 reduce _ (Scalar a) = Unmodified $ Scalar a
