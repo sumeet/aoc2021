@@ -92,7 +92,11 @@ reduce :: Int -> Pair -> ReductionMaybe Pair
 reduce _ (Scalar a) = Unmodified $ Scalar a
 reduce n (Pair a b) = case nextReduce a of
   Reduced reduced -> Reduced $ applyReductionL reduced b
-  Unmodified a' -> Pair a' <$> nextReduce b
+  Unmodified a' ->
+    ( case nextReduce b of
+        Reduced reduced -> Reduced $ applyReductionR a' reduced
+        Unmodified b' -> Unmodified (Pair a' b')
+    )
   where
     nextReduce el =
       maybe
