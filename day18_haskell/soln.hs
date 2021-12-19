@@ -95,7 +95,7 @@ applyReductionR (Scalar a) (Exploded (b, Nothing, Just m)) =
   Exploded (Pair (Scalar a) b, Nothing, Just m)
 applyReductionR a (Exploded (b, Nothing, Nothing)) = Contained $ Pair a b
 applyReductionR (Pair aa ab) (Exploded (b, n, m)) =
-  flip Pair b <$> applyReductionR aa (Exploded (ab, n, m))
+  flip Pair b <$> applyReductionL (Exploded (aa, n, m)) ab
 applyReductionR a (Split b) = Contained $ Pair a b
 applyReductionR a (Contained b) = Contained $ Pair a b
 
