@@ -5,6 +5,7 @@ import Data.Bifunctor (first, second)
 import Data.Char (digitToInt, isDigit)
 import Data.Either.Extra (fromLeft')
 import Data.Maybe (fromJust)
+import Debug.Trace (trace)
 
 data Pair = Scalar Int | Pair Pair Pair deriving (Show)
 
@@ -55,7 +56,7 @@ parseDigit (c : cs)
   | otherwise = Nothing
 parseDigit [] = Nothing
 
-data Reduced a = Exploded (a, Int, Int) | Split (a, Int) | Contained a deriving (Show)
+data Reduced a = Exploded (a, Maybe Int, Maybe Int) | Split (a, Int) | Contained a deriving (Show)
 
 instance Functor Reduced where
   fmap f (Exploded (a, n, m)) = Exploded (f a, n, m)
@@ -73,16 +74,26 @@ pattern Unmodified a = Right a
 {-# COMPLETE Reduced, Unmodified #-}
 
 applyReductionL :: Reduced Pair -> Pair -> Reduced Pair
-applyReductionL (Exploded (a, _, m)) (Scalar b') =
-  Contained $ Pair a $ Scalar (b' + m)
+applyReductionL (Exploded (a, Nothing, Just m)) (Scalar b) =
+  Contained $ Pair a $ Scalar (b + m)
+applyReductionL (Exploded (a, n, Just m)) (Scalar b) =
+  Exploded (Pair a (Scalar (b + m)), n, Nothing)
+applyReductionL (Exploded (a, Just n, Nothing)) (Scalar b) =
+  Exploded (Pair a $ Scalar b, Just n, Nothing)
+applyReductionL (Exploded (a, Nothing, Nothing)) b = Contained $ Pair a b
 applyReductionL (Exploded (a, n, m)) (Pair ba bb) =
   Pair a <$> applyReductionL (Exploded (ba, n, m)) bb
 applyReductionL (Split (a, n)) b = Contained $ Pair a b
 applyReductionL (Contained a) b = Contained $ Pair a b
 
 applyReductionR :: Pair -> Reduced Pair -> Reduced Pair
-applyReductionR (Scalar a') (Exploded (b, n, _)) =
-  Contained $ Pair (Scalar (a' + n)) b
+applyReductionR (Scalar a) (Exploded (b, Just n, Nothing)) =
+  Contained $ Pair (Scalar (a + n)) b
+applyReductionR (Scalar a) (Exploded (b, Just n, Just m)) =
+  Exploded (Pair (Scalar (a + n)) b, Nothing, Just m)
+applyReductionR (Scalar a) (Exploded (b, Nothing, Just m)) =
+  Exploded (Pair (Scalar a) b, Nothing, Just m)
+applyReductionR a (Exploded (b, Nothing, Nothing)) = Contained $ Pair a b
 applyReductionR (Pair aa ab) (Exploded (b, n, m)) =
   flip Pair b <$> applyReductionR aa (Exploded (ab, n, m))
 applyReductionR a (Split (b, n)) = Contained $ Pair a b
@@ -108,7 +119,7 @@ tryExplode :: Int -> Pair -> Maybe (Reduced Pair)
 tryExplode _ (Scalar _) = Nothing
 tryExplode n (Pair (Scalar a) (Scalar b))
   | n < 3 = Nothing
-  | otherwise = Just $ Exploded (Scalar 0, a, b)
+  | otherwise = Just $ Exploded (Scalar 0, Just a, Just b)
 tryExplode n _ = Nothing
 
 trySplit :: Pair -> Maybe (Reduced Pair)
@@ -127,6 +138,7 @@ fromReduced (Reduced (Split (a, n))) = a
 
 main :: IO ()
 main = do
+  let pair = parseLine "[[[[[9,8],1],2],3],4]"
   let pair = parseLine "[[6,[5,[4,[3,2]]]],1]"
   putStrLn $ dump pair
   putStrLn $ dump $ fromReduced $ reduce 0 pair
