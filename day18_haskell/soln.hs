@@ -81,28 +81,28 @@ applyReductionL (Exploded (a, Just n, Nothing)) (Scalar b) =
   Exploded (Pair a $ Scalar b, Just n, Nothing)
 applyReductionL (Exploded (a, Nothing, Nothing)) b = Contained $ Pair a b
 applyReductionL (Exploded (a, n, m)) (Pair ba bb) =
-  Pair a <$> applyReductionR ba (Exploded (bb, m, Nothing))
+  Pair a <$> applyReductionR ba (traceMarker "inside" $ Exploded (bb, m, n))
 applyReductionL (Contained a) b = Contained $ Pair a b
 
 applyReductionR :: Pair -> Reduced Pair -> Reduced Pair
 applyReductionR (Scalar a) (Exploded (b, Just n, Nothing)) =
-  Contained $ Pair (Scalar (a + n)) b
+  Contained $ Pair (Scalar $ a + n) b
 applyReductionR (Scalar a) (Exploded (b, Just n, Just m)) =
-  Exploded (Pair (Scalar (a + n)) b, Nothing, Just m)
+  Exploded (Pair (Scalar $ a + n) b, Nothing, Just m)
 applyReductionR (Scalar a) (Exploded (b, Nothing, Just m)) =
   Exploded (Pair (Scalar a) b, Nothing, Just m)
 applyReductionR a (Exploded (b, Nothing, Nothing)) = Contained $ Pair a b
 applyReductionR (Pair aa ab) (Exploded (b, n, m)) =
-  flip Pair b <$> applyReductionL (Exploded (aa, Nothing, n)) ab
+  flip Pair b <$> applyReductionL (Exploded (aa, m, n)) ab
 applyReductionR a (Contained b) = Contained $ Pair a b
 
 reduce :: Int -> Pair -> ReductionMaybe Pair
 reduce _ (Scalar a) = Unmodified $ Scalar a
 reduce n (Pair a b) = case nextReduce a of
-  Reduced reduced -> Reduced $ applyReductionL reduced b
+  Reduced reduced -> Reduced $ traceMarker "after reduceL" $ applyReductionL (traceMarker "reduced" reduced) (traceShowId b)
   Unmodified a' ->
     ( case nextReduce b of
-        Reduced reduced -> Reduced $ applyReductionR a' (traceShowId reduced)
+        Reduced reduced -> Reduced $ applyReductionR a' reduced
         Unmodified b' -> Unmodified (Pair a' b')
     )
   where
@@ -131,10 +131,13 @@ trySplit _ = Nothing
 fromReduced :: ReductionMaybe a -> a
 fromReduced (Unmodified a) = a
 fromReduced (Reduced (Contained a)) = a
-fromReduced (Reduced (Exploded (a, n, m))) = a
+fromReduced (Reduced (Exploded (a, n, m))) = error "not reduced"
 
 traceWith :: (a -> String) -> a -> a
 traceWith f x = trace (f x) x
+
+traceMarker :: Show a => String -> a -> a
+traceMarker s = traceWith (\x -> s ++ ": " ++ show x)
 
 untilStable :: Eq a => (a -> a) -> a -> a
 untilStable f x = if x == x' then x else untilStable f x'
