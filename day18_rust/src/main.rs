@@ -31,6 +31,13 @@ fn dump(p: &Pair) -> String {
     }
 }
 
+fn left_most(p: &mut Pair) -> &mut Pair {
+    match p {
+        Pair::Pair(l, r) => left_most(l),
+        _ => p,
+    }
+}
+
 fn until_stable<T: PartialEq + Clone>(mut func: impl FnMut(T) -> T, t: T) -> T {
     let mut prev = t;
     loop {
@@ -53,8 +60,9 @@ fn div_round_up(a: usize, b: usize) -> usize {
 fn reduce(pair: Pair, depth: usize) -> (Pair, ReduceResult) {
     use crate::Pair::*;
     use ReduceResult::*;
-    match pair {
+    let (mut res, was_reduced) = match pair {
         Scalar(n) => {
+            // split case
             if n >= 10 {
                 (
                     Pair(
@@ -67,7 +75,9 @@ fn reduce(pair: Pair, depth: usize) -> (Pair, ReduceResult) {
                 (Scalar(n), Untouched)
             }
         }
-        // left and to the right
+        // explosion case
+        Pair(box Scalar(l), box Scalar(r)) if depth > 3 => (explode(l, r), Reduced),
+        // left explode propagates left and to the right
         Pair(box Scalar(n), box LeftAnd(r, explode_n)) => {
             (Pair(Box::new(Scalar(n + explode_n)), r), Reduced)
         }
@@ -75,6 +85,7 @@ fn reduce(pair: Pair, depth: usize) -> (Pair, ReduceResult) {
             Pair(box Pair(box ToTheRight(pl, explode_n), pr), r),
             Reduced,
         ),
+        Pair(box LeftAnd(l, explode_n), pr) => (LeftAnd(box Pair(l, pr), explode_n), Reduced),
         Pair(box ToTheRight(l, explode_n), box Pair(rl, rr)) => (
             Pair(l, box Pair(box ToTheRight(rl, explode_n), rr)),
             Reduced,
@@ -82,7 +93,7 @@ fn reduce(pair: Pair, depth: usize) -> (Pair, ReduceResult) {
         Pair(box ToTheRight(l, explode_n), box Scalar(n)) => {
             (Pair(l, box Scalar(n + explode_n)), Reduced)
         }
-        // right and to the left
+        // right explode propagates right and to the left
         Pair(box RightAnd(l, explode_n), box Scalar(n)) => {
             (Pair(l, box Scalar(n + explode_n)), Reduced)
         }
@@ -122,7 +133,18 @@ fn reduce(pair: Pair, depth: usize) -> (Pair, ReduceResult) {
             }
         }
         _ => panic!("unexpected pair: {:?}", pair),
+    };
+    if depth == 0 {
+        let left_most_el = left_most(&mut res);
+        let inner_to_replace = match left_most_el {
+            LeftAnd(p, _) => Some(p.clone()),
+            _ => None,
+        };
+        if let Some(inner_to_replace) = inner_to_replace {
+            *left_most_el = *inner_to_replace;
+        }
     }
+    (res, was_reduced)
 }
 
 fn explode(l: usize, r: usize) -> Pair {
@@ -168,11 +190,10 @@ fn parse(chars: &mut Peekable<impl Iterator<Item = char>>) -> Pair {
 }
 
 fn main() {
-    let init_pair = parse(&mut "[[[[E[9,8],1],2],3],4]".chars().peekable());
+    let init_pair = parse(&mut "[[[[[4,3],4],4],[7,[[8,4],9]]],[1,1]]".chars().peekable());
     let stabilized = until_stable(
         |pair| {
             println!("{}", dump(&pair));
-            sleep(std::time::Duration::from_millis(1000));
             reduce(pair, 0).0
         },
         init_pair,
