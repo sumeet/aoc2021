@@ -64,26 +64,54 @@ fn div_round_up(a: usize, b: usize) -> usize {
     (a + b - 1) / b
 }
 
-fn reduce(pair: Pair, depth: usize) -> (Pair, ReduceResult) {
+fn trigger_explosion(pair: Pair, depth: usize) -> Option<Pair> {
+    use crate::Pair::*;
+    match pair {
+        // explosion case
+        Pair(box Scalar(l), box Scalar(r)) if depth > 3 => Some(explode(l, r)),
+        Pair(box l, box r) => match trigger_explosion(l.clone(), depth + 1) {
+            Some(left_explosion) => Some(Pair(box left_explosion, box r)),
+            None => match trigger_explosion(r, depth + 1) {
+                Some(right_explosion) => Some(Pair(box l, box right_explosion)),
+                None => None,
+            },
+        },
+        Scalar(_) => None,
+        otherwise => panic!(
+            "can't trigger explosion with ongoing activity: {:?}",
+            otherwise
+        ),
+    }
+}
+
+fn trigger_split(pair: Pair) -> Option<Pair> {
+    use crate::Pair::*;
+    match pair {
+        Pair(box l, box r) => match trigger_split(l.clone()) {
+            Some(left_split) => Some(Pair(box left_split, box r)),
+            None => match trigger_split(r) {
+                Some(right_split) => Some(Pair(box l, box right_split)),
+                None => None,
+            },
+        },
+        Scalar(n) => {
+            if n >= 10 {
+                Some(Pair(
+                    Box::new(Scalar(div_round_down(n, 2))),
+                    Box::new(Scalar(div_round_up(n, 2))),
+                ))
+            } else {
+                None
+            }
+        }
+        otherwise => panic!("can't trigger split with ongoing activity: {:?}", otherwise),
+    }
+}
+
+fn reduce_explosion(pair: Pair, depth: usize) -> (Pair, ReduceResult) {
     use crate::Pair::*;
     use ReduceResult::*;
     let (mut res, was_reduced) = match pair {
-        Scalar(n) => {
-            // split case
-            if n >= 10 {
-                (
-                    Pair(
-                        Box::new(Scalar(div_round_down(n, 2))),
-                        Box::new(Scalar(div_round_up(n, 2))),
-                    ),
-                    Reduced,
-                )
-            } else {
-                (Scalar(n), Untouched)
-            }
-        }
-        // explosion case
-        Pair(box Scalar(l), box Scalar(r)) if depth > 3 => (explode(l, r), Reduced),
         // left explode propagates left and to the right
         Pair(box Scalar(n), box LeftAnd(r, explode_n)) => {
             (Pair(Box::new(Scalar(n + explode_n)), r), Reduced)
@@ -116,11 +144,11 @@ fn reduce(pair: Pair, depth: usize) -> (Pair, ReduceResult) {
         }
         // do the reduction, we may need to repeatedly call this
         Pair(l, r) => {
-            let (l_reduced, was_reduced) = reduce(*l, depth + 1);
+            let (l_reduced, was_reduced) = reduce_explosion(*l, depth + 1);
             match was_reduced {
                 Reduced => (Pair(Box::new(l_reduced), r), Reduced),
                 Untouched => {
-                    let (r_reduced, was_reduced) = reduce(*r, depth + 1);
+                    let (r_reduced, was_reduced) = reduce_explosion(*r, depth + 1);
                     (Pair(Box::new(l_reduced), Box::new(r_reduced)), was_reduced)
                 }
             }
@@ -139,6 +167,7 @@ fn reduce(pair: Pair, depth: usize) -> (Pair, ReduceResult) {
                 (LeftAnd(inner, explode_n), Reduced)
             }
         }
+        Scalar(n) => (Scalar(n), Untouched),
         _ => panic!("unexpected pair: {:?}", pair),
     };
     if depth == 0 {
@@ -196,14 +225,21 @@ fn parse(chars: &mut Peekable<impl Iterator<Item = char>>) -> Pair {
     }
 }
 
+fn reduce(p: Pair) -> Pair {
+    let exploded = trigger_explosion(p.clone(), 0).map(|exploded| {
+        until_stable(
+            |pair| {
+                println!("i: {}", dump(&pair));
+                reduce_explosion(pair, 0).0
+            },
+            exploded,
+        )
+    });
+    exploded.or_else(|| trigger_split(p.clone())).unwrap_or(p)
+}
+
 fn reduce_until_stable(p: Pair) -> Pair {
-    until_stable(
-        |pair| {
-            println!("i: {}", dump(&pair));
-            reduce(pair, 0).0
-        },
-        p,
-    )
+    until_stable(|pair| reduce(pair), p)
 }
 
 fn add(l: Pair, r: Pair) -> Pair {
@@ -212,7 +248,7 @@ fn add(l: Pair, r: Pair) -> Pair {
 
 fn main() {
     let mut pairs = parse_lines(include_str!("../sample"));
-    let mut res = reduce_until_stable(pairs.next().unwrap());
+    let mut res = reduce(pairs.next().unwrap());
     for pair in pairs {
         res = reduce_until_stable(add(res, pair));
         println!("{}", dump(&res));
