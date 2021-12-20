@@ -1,6 +1,7 @@
 #![feature(box_patterns)]
 #![feature(box_syntax)]
 
+use itertools::Itertools;
 use std::iter::Peekable;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -27,6 +28,7 @@ enum ReduceResult {
     Untouched,
 }
 
+#[allow(unused)]
 fn dump(p: &Pair) -> String {
     match p {
         Pair::Scalar(n) => n.to_string(),
@@ -226,15 +228,8 @@ fn parse(chars: &mut Peekable<impl Iterator<Item = char>>) -> Pair {
 }
 
 fn reduce(p: Pair) -> Pair {
-    let exploded = trigger_explosion(p.clone(), 0).map(|exploded| {
-        until_stable(
-            |pair| {
-                println!("i: {}", dump(&pair));
-                reduce_explosion(pair, 0).0
-            },
-            exploded,
-        )
-    });
+    let exploded = trigger_explosion(p.clone(), 0)
+        .map(|exploded| until_stable(|pair| reduce_explosion(pair, 0).0, exploded));
     exploded.or_else(|| trigger_split(p.clone())).unwrap_or(p)
 }
 
@@ -247,13 +242,27 @@ fn add(l: Pair, r: Pair) -> Pair {
 }
 
 fn main() {
-    let mut pairs = parse_lines(include_str!("../sample"));
+    part1();
+    part2();
+}
+
+fn part1() {
+    let mut pairs = parse_lines(include_str!("../input"));
     let mut res = reduce(pairs.next().unwrap());
     for pair in pairs {
         res = reduce_until_stable(add(res, pair));
-        println!("{}", dump(&res));
     }
-    dbg!(magnitude(&res));
+    println!("part 1: {}", magnitude(&res));
+}
+
+fn part2() {
+    let pairs = parse_lines(include_str!("../input")).collect_vec();
+    let max = pairs
+        .into_iter()
+        .tuple_combinations()
+        .map(|(a, b)| magnitude(&reduce_until_stable(add(a, b))))
+        .max();
+    println!("part 2: {}", max.unwrap());
 }
 
 fn parse_lines(s: &str) -> impl Iterator<Item = Pair> + '_ {
