@@ -2,7 +2,6 @@
 #![feature(box_syntax)]
 
 use std::iter::Peekable;
-use std::thread::sleep;
 
 #[derive(Debug, Clone, PartialEq)]
 enum Pair {
@@ -12,6 +11,14 @@ enum Pair {
     ToTheRight(Box<Pair>, usize),
     RightAnd(Box<Pair>, usize),
     ToTheLeft(Box<Pair>, usize),
+}
+
+fn magnitude(pair: &Pair) -> usize {
+    match pair {
+        Pair::Scalar(magnitude) => *magnitude,
+        Pair::Pair(left, right) => 3 * magnitude(left) + 2 * magnitude(right),
+        _ => panic!("unexpected"),
+    }
 }
 
 #[derive(Debug)]
@@ -24,16 +31,16 @@ fn dump(p: &Pair) -> String {
     match p {
         Pair::Scalar(n) => n.to_string(),
         Pair::Pair(l, r) => format!("[{},{}]", dump(l), dump(r)),
-        Pair::LeftAnd(p, n) => format!("LeftAnd(n: {}, {})", n, dump(p)),
-        Pair::ToTheRight(p, n) => format!("ToTheRight(n: {}, {})", n, dump(p)),
-        Pair::RightAnd(p, n) => format!("RightAnd(n: {}, {})", n, dump(p)),
-        Pair::ToTheLeft(p, n) => format!("ToTheLeft(n: {}, {})", n, dump(p)),
+        Pair::LeftAnd(p, n) => format!("<{}({})", n, dump(p)),
+        Pair::ToTheRight(p, n) => format!("<{}({})", n, dump(p)),
+        Pair::RightAnd(p, n) => format!(">{}({})", n, dump(p)),
+        Pair::ToTheLeft(p, n) => format!(">{}({})", n, dump(p)),
     }
 }
 
 fn left_most(p: &mut Pair) -> &mut Pair {
     match p {
-        Pair::Pair(l, r) => left_most(l),
+        Pair::Pair(l, _) => left_most(l),
         _ => p,
     }
 }
@@ -189,14 +196,30 @@ fn parse(chars: &mut Peekable<impl Iterator<Item = char>>) -> Pair {
     }
 }
 
-fn main() {
-    let init_pair = parse(&mut "[[[[[4,3],4],4],[7,[[8,4],9]]],[1,1]]".chars().peekable());
-    let stabilized = until_stable(
+fn reduce_until_stable(p: Pair) -> Pair {
+    until_stable(
         |pair| {
-            println!("{}", dump(&pair));
+            println!("i: {}", dump(&pair));
             reduce(pair, 0).0
         },
-        init_pair,
-    );
-    println!("{}", dump(&stabilized));
+        p,
+    )
+}
+
+fn add(l: Pair, r: Pair) -> Pair {
+    Pair::Pair(Box::new(l), Box::new(r))
+}
+
+fn main() {
+    let mut pairs = parse_lines(include_str!("../sample"));
+    let mut res = reduce_until_stable(pairs.next().unwrap());
+    for pair in pairs {
+        res = reduce_until_stable(add(res, pair));
+        println!("{}", dump(&res));
+    }
+    dbg!(magnitude(&res));
+}
+
+fn parse_lines(s: &str) -> impl Iterator<Item = Pair> + '_ {
+    s.lines().map(|line| parse(&mut line.chars().peekable()))
 }
