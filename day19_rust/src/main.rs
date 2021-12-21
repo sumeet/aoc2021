@@ -12,23 +12,40 @@ lazy_static! {
     };
 }
 
-fn find_commonalities(a: &Scanner, b: &Scanner) -> Vec<(usize, Coord)> {
-    a.all_rotations()
+struct ScannerMatch {
+    a_idx: usize,
+    a_arr: Arrangement,
+    a_beacons: Vec<Coord>,
+    b_idx: usize,
+    b_arr: Arrangement,
+    b_beacons: Vec<Coord>,
+}
+
+fn find_commonalities(scanners: &[Scanner]) -> Vec<(usize, Coord)> {
+    scanners
         .into_iter()
-        .cartesian_product(b.all_rotations().into_iter())
-        .map(|(a_beacons, b_beacons)| {
-            a_beacons
+        .tuple_combinations()
+        .map(|(a, b)| {
+            a.all_arrangements()
                 .into_iter()
-                .cartesian_product(b_beacons.into_iter())
-                .map(|(a, b)| a - b)
-                .sorted()
-                .dedup_with_count()
+                .cartesian_product(b.all_arrangements().into_iter())
+                .map(|((arrange_a, a_beacons), (arrange_b, b_beacons))| {
+                    a_beacons
+                        .into_iter()
+                        .cartesian_product(b_beacons.into_iter())
+                        .map(|(a, b)| a - b)
+                        .sorted()
+                        .dedup_with_count()
+                        .max_by_key(|(n, _)| *n)
+                        .unwrap()
+                })
                 .max_by_key(|(n, _)| *n)
-                .unwrap()
+                .into_iter()
+                .collect_vec()
         })
-        .max_by_key(|(n, _)| *n)
-        .into_iter()
-        .collect_vec()
+        .flatten()
+        .filter(|(n, _)| *n >= 12)
+        .collect()
 }
 
 fn main() {
@@ -37,7 +54,7 @@ fn main() {
 
     // dbg!(&parsed[0]);
     // dbg!(&parsed[1]);
-    dbg!(find_commonalities(&parsed[0], &parsed[1]));
+    dbg!(find_commonalities(&parsed));
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -99,41 +116,61 @@ impl Coord {
         Coord { x, y, z }
     }
 
+    fn get_dim(&self, dim: Dim) -> isize {
+        match dim {
+            Dim::X => self.x,
+            Dim::Y => self.y,
+            Dim::Z => self.z,
+        }
+    }
+
     fn in_arrangement(self, Arrangement { dims, flips }: Arrangement) -> Self {
         let (x, y, z) = dims
             .iter()
             .zip(flips.iter())
-            .map(|(dim, flip)| match dim {
-                Dim::X => self.x,
-                Dim::Y => self.y,
-                Dim::Z => self.z,
-            } * flip)
+            .map(|(dim, flip)| self.get_dim(*dim) * flip)
             .collect_tuple()
             .unwrap();
         Self { x, y, z }
+    }
+
+    fn reverse_arrangement(self, Arrangement { dims, flips }: Arrangement) -> Self {
+        let mut xyz = [0; 3];
+        for ((i, dim), flip) in dims.iter().enumerate().zip(flips.iter()) {
+            xyz[i] = self.get_dim(*dim) * flip;
+        }
+        Self {
+            x: xyz[0],
+            y: xyz[1],
+            z: xyz[2],
+        }
     }
 }
 
 #[derive(Debug)]
 struct Scanner {
-    beacon_locs: Vec<Coord>,
+    beacons: Vec<Coord>,
 }
 
 impl Scanner {
     fn new() -> Self {
         Scanner {
-            beacon_locs: Vec::new(),
+            beacons: Vec::new(),
         }
     }
 
-    fn all_rotations(&self) -> Vec<Vec<Coord>> {
+    fn all_arrangements(&self) -> Vec<(Arrangement, Vec<Coord>)> {
         ARRANGEMENTS
             .iter()
+            .copied()
             .map(|arrangement| {
-                self.beacon_locs
-                    .iter()
-                    .map(|loc| loc.in_arrangement(*arrangement))
-                    .collect()
+                (
+                    arrangement,
+                    self.beacons
+                        .iter()
+                        .map(|loc| loc.in_arrangement(arrangement))
+                        .collect(),
+                )
             })
             .collect()
     }
@@ -161,7 +198,7 @@ fn parse(s: &str) -> Vec<Scanner> {
             .map(|s| s.parse().unwrap())
             .collect_tuple()
             .unwrap();
-        this_scanner.beacon_locs.push(Coord::new(x, y, z));
+        this_scanner.beacons.push(Coord::new(x, y, z));
     }
     ret.push(this_scanner);
     ret
