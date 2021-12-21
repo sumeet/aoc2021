@@ -19,7 +19,7 @@ fn find_commonalities(a: &Scanner, b: &Scanner) -> Vec<(usize, Coord)> {
         .map(|(a_beacons, b_beacons)| {
             a_beacons
                 .into_iter()
-                .zip(b_beacons.into_iter())
+                .cartesian_product(b_beacons.into_iter())
                 .map(|(a, b)| a - b)
                 .sorted()
                 .dedup_with_count()
