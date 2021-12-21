@@ -1,6 +1,6 @@
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use std::ops::Sub;
+use std::ops::{Add, Sub};
 
 lazy_static! {
     static ref ARRANGEMENTS: Vec<Arrangement> = {
@@ -20,18 +20,20 @@ fn main() {
     assert_eq!(comm.b_idx, 1);
 
     let arr1 = comm.a_arr;
-    // let arr2 = comm.b_arr;
+    let arr2 = comm.b_arr;
     let some_beacon = comm.b_beacons[0];
     let there = some_beacon.in_arrangement(arr1);
     let there_and_back = there.reverse_arrangement(arr1);
-    dbg!(arr1);
-    dbg!(there);
     assert_eq!(some_beacon, there_and_back);
-    // dbg!(comm
-    //     .b_beacons
-    //     .iter()
-    //     .map(|beacon| beacon.reverse_arrangement(arr1).reverse_arrangement(arr2))
-    //     .collect_vec());
+    dbg!(comm
+        .b_beacons
+        .iter()
+        .map(|beacon| {
+            (*beacon + comm.a_diff_b)
+                .reverse_arrangement(arr1)
+                .reverse_arrangement(arr2)
+        })
+        .collect_vec());
 }
 
 #[derive(Debug)]
@@ -42,6 +44,7 @@ struct ScannerMatch {
     b_idx: usize,
     b_arr: Arrangement,
     b_beacons: Vec<Coord>,
+    a_diff_b: Coord,
 }
 
 fn find_commonalities(scanners: &[Scanner]) -> Vec<ScannerMatch> {
@@ -59,9 +62,10 @@ fn find_commonalities(scanners: &[Scanner]) -> Vec<ScannerMatch> {
                         .cartesian_product(b_beacons.into_iter())
                         .into_group_map_by(|(a, b)| (*a - *b))
                         .into_iter()
-                        .find_map(|(_, a_and_b_coords)| {
+                        .find_map(|(diff, a_and_b_coords)| {
                             if a_and_b_coords.len() >= 12 {
                                 Some(ScannerMatch {
+                                    a_diff_b: diff,
                                     a_idx,
                                     a_arr: arrange_a,
                                     a_beacons: a_and_b_coords.iter().map(|(a, _)| *a).collect(),
@@ -129,6 +133,18 @@ impl Sub for Coord {
             x: self.x - rhs.x,
             y: self.y - rhs.y,
             z: self.z - rhs.z,
+        }
+    }
+}
+
+impl Add for Coord {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Coord {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
         }
     }
 }
