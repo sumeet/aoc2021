@@ -12,6 +12,29 @@ lazy_static! {
     };
 }
 
+fn main() {
+    let parsed = parse(include_str!("../sample"));
+    let comms = find_commonalities(&parsed);
+    let comm = &comms[0];
+    assert_eq!(comm.a_idx, 0);
+    assert_eq!(comm.b_idx, 1);
+
+    let arr1 = comm.a_arr;
+    // let arr2 = comm.b_arr;
+    let some_beacon = comm.b_beacons[0];
+    let there = some_beacon.in_arrangement(arr1);
+    let there_and_back = there.reverse_arrangement(arr1);
+    dbg!(arr1);
+    dbg!(there);
+    assert_eq!(some_beacon, there_and_back);
+    // dbg!(comm
+    //     .b_beacons
+    //     .iter()
+    //     .map(|beacon| beacon.reverse_arrangement(arr1).reverse_arrangement(arr2))
+    //     .collect_vec());
+}
+
+#[derive(Debug)]
 struct ScannerMatch {
     a_idx: usize,
     a_arr: Arrangement,
@@ -21,40 +44,39 @@ struct ScannerMatch {
     b_beacons: Vec<Coord>,
 }
 
-fn find_commonalities(scanners: &[Scanner]) -> Vec<(usize, Coord)> {
+fn find_commonalities(scanners: &[Scanner]) -> Vec<ScannerMatch> {
     scanners
         .into_iter()
+        .enumerate()
         .tuple_combinations()
-        .map(|(a, b)| {
+        .map(|((a_idx, a), (b_idx, b))| {
             a.all_arrangements()
                 .into_iter()
                 .cartesian_product(b.all_arrangements().into_iter())
-                .map(|((arrange_a, a_beacons), (arrange_b, b_beacons))| {
+                .find_map(|((arrange_a, a_beacons), (arrange_b, b_beacons))| {
                     a_beacons
                         .into_iter()
                         .cartesian_product(b_beacons.into_iter())
-                        .map(|(a, b)| a - b)
-                        .sorted()
-                        .dedup_with_count()
-                        .max_by_key(|(n, _)| *n)
-                        .unwrap()
+                        .into_group_map_by(|(a, b)| (*a - *b))
+                        .into_iter()
+                        .find_map(|(_, a_and_b_coords)| {
+                            if a_and_b_coords.len() >= 12 {
+                                Some(ScannerMatch {
+                                    a_idx,
+                                    a_arr: arrange_a,
+                                    a_beacons: a_and_b_coords.iter().map(|(a, _)| *a).collect(),
+                                    b_idx,
+                                    b_arr: arrange_b,
+                                    b_beacons: a_and_b_coords.iter().map(|(_, b)| *b).collect(),
+                                })
+                            } else {
+                                None
+                            }
+                        })
                 })
-                .max_by_key(|(n, _)| *n)
-                .into_iter()
-                .collect_vec()
         })
         .flatten()
-        .filter(|(n, _)| *n >= 12)
         .collect()
-}
-
-fn main() {
-    let parsed = parse(include_str!("../sample"));
-    // let to_rotate = &parsed[0];
-
-    // dbg!(&parsed[0]);
-    // dbg!(&parsed[1]);
-    dbg!(find_commonalities(&parsed));
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -92,7 +114,7 @@ impl Dim {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct Coord {
     x: isize,
     y: isize,
@@ -136,8 +158,13 @@ impl Coord {
 
     fn reverse_arrangement(self, Arrangement { dims, flips }: Arrangement) -> Self {
         let mut xyz = [0; 3];
-        for ((i, dim), flip) in dims.iter().enumerate().zip(flips.iter()) {
-            xyz[i] = self.get_dim(*dim) * flip;
+        for (i, dim) in dims.iter().enumerate() {
+            xyz[i] = self.get_dim(*dim)
+                * flips[match dim {
+                    Dim::X => 0,
+                    Dim::Y => 1,
+                    Dim::Z => 2,
+                }]
         }
         Self {
             x: xyz[0],
