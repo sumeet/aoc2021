@@ -1,8 +1,9 @@
 use itertools::Itertools;
 use lazy_static::lazy_static;
+use std::ops::Sub;
 
 lazy_static! {
-    static ref ARRANGEMENTS: Vec<(Arrangement)> = {
+    static ref ARRANGEMENTS: Vec<Arrangement> = {
         Dim::all_combos()
             .into_iter()
             .cartesian_product(all_flips().into_iter())
@@ -11,12 +12,32 @@ lazy_static! {
     };
 }
 
-fn main() {
-    let parsed = parse();
-    let to_rotate = &parsed[0];
+fn find_commonalities(a: &Scanner, b: &Scanner) -> Vec<(usize, Coord)> {
+    a.all_rotations()
+        .into_iter()
+        .cartesian_product(b.all_rotations().into_iter())
+        .map(|(a_beacons, b_beacons)| {
+            a_beacons
+                .into_iter()
+                .zip(b_beacons.into_iter())
+                .map(|(a, b)| a - b)
+                .sorted()
+                .dedup_with_count()
+                .max_by_key(|(n, _)| *n)
+                .unwrap()
+        })
+        .max_by_key(|(n, _)| *n)
+        .into_iter()
+        .collect_vec()
+}
 
-    dbg!(to_rotate.all_rotations().len());
-    dbg!(to_rotate.all_rotations());
+fn main() {
+    let parsed = parse(include_str!("../sample"));
+    // let to_rotate = &parsed[0];
+
+    // dbg!(&parsed[0]);
+    // dbg!(&parsed[1]);
+    dbg!(find_commonalities(&parsed[0], &parsed[1]));
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -54,11 +75,23 @@ impl Dim {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Coord {
     x: isize,
     y: isize,
     z: isize,
+}
+
+impl Sub for Coord {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Coord {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
+        }
+    }
 }
 
 impl Coord {
@@ -106,9 +139,9 @@ impl Scanner {
     }
 }
 
-fn parse() -> Vec<Scanner> {
+fn parse(s: &str) -> Vec<Scanner> {
+    let mut lines = s.lines();
     let mut ret = vec![];
-    let mut lines = include_str!("../rotsample").lines();
     // skip the first line --- scanner 0 ---
     lines.next().unwrap();
     let mut this_scanner = Scanner::new();
