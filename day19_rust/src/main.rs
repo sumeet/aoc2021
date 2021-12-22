@@ -60,12 +60,12 @@ fn conversion_path(
 }
 
 // returned from target perspective
-fn find_matches(target: &Scanner, cand: &Scanner) -> Option<Vec<Coord>> {
+fn find_matches(target: &Scanner, cand: &Scanner) -> Option<(impl Fn(Coord) -> Coord, Coord)> {
     target
         .all_arrangements()
         .into_iter()
         .cartesian_product(cand.all_arrangements().into_iter())
-        .find_map(|((arrange_a, a_beacons), (_arrange_b, b_beacons))| {
+        .find_map(|((arrange_a, a_beacons), (arrange_b, b_beacons))| {
             a_beacons
                 .into_iter()
                 .cartesian_product(b_beacons.into_iter())
@@ -73,12 +73,13 @@ fn find_matches(target: &Scanner, cand: &Scanner) -> Option<Vec<Coord>> {
                 .into_iter()
                 .find_map(|(diff, a_and_b_coords)| {
                     if a_and_b_coords.len() >= 12 {
-                        Some(
-                            a_and_b_coords
-                                .iter()
-                                .map(|(_, b)| (diff + *b).reverse_arrangement(arrange_a))
-                                .collect(),
-                        )
+                        Some((
+                            move |coord: Coord| {
+                                (diff + coord.in_arrangement(arrange_b))
+                                    .reverse_arrangement(arrange_a)
+                            },
+                            diff.reverse_arrangement(arrange_a),
+                        ))
                     } else {
                         None
                     }
@@ -86,29 +87,28 @@ fn find_matches(target: &Scanner, cand: &Scanner) -> Option<Vec<Coord>> {
         })
 }
 
+fn manhattan_distance(a: Coord, b: Coord) -> isize {
+    (a.x - b.x).abs() + (a.y - b.y).abs() + (a.z - b.z).abs()
+}
+
 fn main() {
-    let parsed = parse(include_str!("../sample"));
+    let parsed = parse(include_str!("../input"));
 
-    let mut coord_counts: HashMap<Coord, usize> = parsed[0]
-        .beacons
-        .iter()
-        .cloned()
-        .map(|coord| (coord, 1))
-        .collect();
+    let mut coord_counts: HashSet<Coord> = parsed[0].beacons.iter().copied().collect();
+    let mut scanner_locs = HashSet::new();
+    scanner_locs.insert(Coord { x: 0, y: 0, z: 0 });
 
-    //dbg!(&coord_counts);
     let mut q = parsed[1..].iter().cloned().collect_vec();
     while !q.is_empty() {
         let mut next_q = vec![];
         for next_scanner in &q {
-            let this_scanner = Scanner {
-                beacons: coord_counts.keys().cloned().collect(),
+            let our_scanner = Scanner {
+                beacons: coord_counts.iter().cloned().collect(),
             };
-            if let Some(matches) = find_matches(&this_scanner, &next_scanner) {
-                dbg!("it's happening");
-                dbg!(&matches);
-                for coord in matches {
-                    *coord_counts.entry(coord).or_insert(0) += 1;
+            if let Some((coord_fn, scanner_loc)) = find_matches(&our_scanner, &next_scanner) {
+                scanner_locs.insert(scanner_loc);
+                for coord in next_scanner.beacons.iter().copied().map(coord_fn) {
+                    coord_counts.insert(coord);
                 }
                 continue; // without reinserting
             }
@@ -116,9 +116,16 @@ fn main() {
             next_q.push(next_scanner.clone());
         }
         q = next_q;
-        dbg!(q.len());
     }
-    dbg!(&coord_counts.values().filter(|&&count| count >= 2).count());
+
+    println!("Part 1: {}", coord_counts.len());
+    let max_distance = scanner_locs
+        .iter()
+        .tuple_combinations()
+        .map(|(a, b)| manhattan_distance(*a, *b))
+        .max()
+        .unwrap();
+    println!("Part 2: {}", max_distance);
 }
 
 fn _main2() {
