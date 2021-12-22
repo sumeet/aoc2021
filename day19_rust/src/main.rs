@@ -1,6 +1,7 @@
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use std::ops::{Add, Sub};
+use std::collections::HashSet;
+use std::ops::{Add, Neg, Sub};
 
 lazy_static! {
     static ref ARRANGEMENTS: Vec<Arrangement> = {
@@ -12,75 +13,73 @@ lazy_static! {
     };
 }
 
-fn main() {
-    let parsed = parse(include_str!("../sample"));
-    let comms = find_commonalities(&parsed);
-    let comm = &comms[0];
-    assert_eq!(comm.a_idx, 0);
-    assert_eq!(comm.b_idx, 1);
-
-    let arr1 = comm.a_arr;
-    let arr2 = comm.b_arr;
-    let some_beacon = comm.b_beacons[0];
-    let there = some_beacon.in_arrangement(arr1);
-    let there_and_back = there.reverse_arrangement(arr1);
-    assert_eq!(some_beacon, there_and_back);
-    dbg!(comm
-        .b_beacons
-        .iter()
-        .map(|beacon| {
-            (*beacon + comm.a_diff_b)
-                .reverse_arrangement(arr1)
-                .reverse_arrangement(arr2)
-        })
-        .collect_vec());
-}
-
-#[derive(Debug)]
-struct ScannerMatch {
-    a_idx: usize,
-    a_arr: Arrangement,
-    a_beacons: Vec<Coord>,
-    b_idx: usize,
-    b_arr: Arrangement,
-    b_beacons: Vec<Coord>,
-    a_diff_b: Coord,
-}
-
-fn find_commonalities(scanners: &[Scanner]) -> Vec<ScannerMatch> {
-    scanners
+// returned from target perspective
+fn find_matches(target: &Scanner, cand: &Scanner) -> Option<(impl Fn(Coord) -> Coord, Coord)> {
+    target
+        .all_arrangements()
         .into_iter()
-        .enumerate()
-        .tuple_combinations()
-        .map(|((a_idx, a), (b_idx, b))| {
-            a.all_arrangements()
+        .cartesian_product(cand.all_arrangements().into_iter())
+        .find_map(|((arrange_a, a_beacons), (arrange_b, b_beacons))| {
+            a_beacons
                 .into_iter()
-                .cartesian_product(b.all_arrangements().into_iter())
-                .find_map(|((arrange_a, a_beacons), (arrange_b, b_beacons))| {
-                    a_beacons
-                        .into_iter()
-                        .cartesian_product(b_beacons.into_iter())
-                        .into_group_map_by(|(a, b)| (*a - *b))
-                        .into_iter()
-                        .find_map(|(diff, a_and_b_coords)| {
-                            if a_and_b_coords.len() >= 12 {
-                                Some(ScannerMatch {
-                                    a_diff_b: diff,
-                                    a_idx,
-                                    a_arr: arrange_a,
-                                    a_beacons: a_and_b_coords.iter().map(|(a, _)| *a).collect(),
-                                    b_idx,
-                                    b_arr: arrange_b,
-                                    b_beacons: a_and_b_coords.iter().map(|(_, b)| *b).collect(),
-                                })
-                            } else {
-                                None
-                            }
-                        })
+                .cartesian_product(b_beacons.into_iter())
+                .into_group_map_by(|(a, b)| (*a - *b))
+                .into_iter()
+                .find_map(|(diff, a_and_b_coords)| {
+                    if a_and_b_coords.len() >= 12 {
+                        Some((
+                            move |coord: Coord| {
+                                (diff + coord.in_arrangement(arrange_b))
+                                    .reverse_arrangement(arrange_a)
+                            },
+                            diff.reverse_arrangement(arrange_a),
+                        ))
+                    } else {
+                        None
+                    }
                 })
         })
-        .flatten()
-        .collect()
+}
+
+fn manhattan_distance(a: Coord, b: Coord) -> isize {
+    (a.x - b.x).abs() + (a.y - b.y).abs() + (a.z - b.z).abs()
+}
+
+fn main() {
+    let parsed = parse(include_str!("../input"));
+
+    let mut coord_counts: HashSet<Coord> = parsed[0].beacons.iter().copied().collect();
+    let mut scanner_locs = HashSet::new();
+    scanner_locs.insert(Coord { x: 0, y: 0, z: 0 });
+
+    let mut q = parsed[1..].iter().cloned().collect_vec();
+    while !q.is_empty() {
+        let mut next_q = vec![];
+        for next_scanner in &q {
+            let our_scanner = Scanner {
+                beacons: coord_counts.iter().cloned().collect(),
+            };
+            if let Some((coord_fn, scanner_loc)) = find_matches(&our_scanner, &next_scanner) {
+                scanner_locs.insert(scanner_loc);
+                for coord in next_scanner.beacons.iter().copied().map(coord_fn) {
+                    coord_counts.insert(coord);
+                }
+                continue; // without reinserting
+            }
+            // we'll try again next time
+            next_q.push(next_scanner.clone());
+        }
+        q = next_q;
+    }
+
+    println!("Part 1: {}", coord_counts.len());
+    let max_distance = scanner_locs
+        .iter()
+        .tuple_combinations()
+        .map(|(a, b)| manhattan_distance(*a, *b))
+        .max()
+        .unwrap();
+    println!("Part 2: {}", max_distance);
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -149,6 +148,18 @@ impl Add for Coord {
     }
 }
 
+impl Neg for Coord {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Coord {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
+}
+
 impl Coord {
     fn new(x: isize, y: isize, z: isize) -> Coord {
         Coord { x, y, z }
@@ -190,7 +201,7 @@ impl Coord {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Scanner {
     beacons: Vec<Coord>,
 }
