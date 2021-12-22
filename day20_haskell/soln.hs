@@ -22,9 +22,12 @@ main :: IO ()
 main = do
   inputLines <- lines <$> readFile "./input"
   let algo = parseAlgo $ head inputLines
-  let grid = parseGrid $ drop 2 inputLines
-  putStrLn $ dump $ enhance (enhance grid algo) algo
-  print $ count $ enhance (enhance grid algo) algo
+  let origGrid = parseGrid $ drop 2 inputLines
+  let padded = (pad . pad . pad . pad . pad) origGrid
+  let enhanced = enhance (enhance padded algo) algo
+  putStrLn $ dump $ enhance (enhance padded algo) algo
+  -- 4 is hax for subtracting out the corners
+  print $ count enhanced - 4
 
 dump :: Grid -> String
 dump = intercalate "\n" . map (map dumpCh)
@@ -41,12 +44,11 @@ enhance grid algo =
     )
     gridIndices
   where
-    gridIndices = zip [0 ..] $ replicate numRows [0 .. rowLength]
-    numRows = length padded
-    rowLength = length $ head padded
-    nbors = neighbors padded
+    gridIndices = zip [0 ..] $ replicate numRows [0 .. rowLength - 1]
+    numRows = length grid
+    rowLength = length $ head grid
+    nbors = neighbors grid
     calc = calcEnhance algo
-    padded = pad grid
 
 calcEnhance :: Algo -> [Px] -> Px
 calcEnhance algo lookup = algo !! toDec lookup
