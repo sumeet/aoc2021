@@ -60,22 +60,29 @@ fn conversion_path(
 }
 
 // returned from target perspective
-fn find_matches(target_beacons: &[Coord], cand_beacons: &[Coord]) -> Option<Vec<Coord>> {
-    target_beacons
+fn find_matches(target: &Scanner, cand: &Scanner) -> Option<Vec<Coord>> {
+    target
+        .all_arrangements()
         .into_iter()
-        .cartesian_product(cand_beacons.into_iter())
-        .into_group_map_by(|(a, b)| **a - **b)
-        .into_iter()
-        .find_map(|(diff, a_and_b_coords)| {
-            if a_and_b_coords.len() >= 12 {
-                let b_coords = a_and_b_coords
-                    .into_iter()
-                    .map(|(_, b)| *b + diff)
-                    .collect::<Vec<_>>();
-                Some(b_coords)
-            } else {
-                None
-            }
+        .cartesian_product(cand.all_arrangements().into_iter())
+        .find_map(|((arrange_a, a_beacons), (_arrange_b, b_beacons))| {
+            a_beacons
+                .into_iter()
+                .cartesian_product(b_beacons.into_iter())
+                .into_group_map_by(|(a, b)| (*a - *b))
+                .into_iter()
+                .find_map(|(diff, a_and_b_coords)| {
+                    if a_and_b_coords.len() >= 12 {
+                        Some(
+                            a_and_b_coords
+                                .iter()
+                                .map(|(_, b)| (diff + *b).reverse_arrangement(arrange_a))
+                                .collect(),
+                        )
+                    } else {
+                        None
+                    }
+                })
         })
 }
 
@@ -93,19 +100,18 @@ fn main() {
     let mut q = parsed[1..].iter().cloned().collect_vec();
     while !q.is_empty() {
         let mut next_q = vec![];
-        'outer: for next_scanner in &q {
-            for (_, cand_beacons) in next_scanner.all_arrangements() {
-                let our_beacons = coord_counts.keys().cloned().collect_vec();
-                if let Some(matches) = find_matches(&our_beacons, &cand_beacons) {
-                    dbg!("it's happening");
-                    dbg!(&matches);
-                    for coord in matches {
-                        *coord_counts.entry(coord).or_insert(0) += 1;
-                    }
-                    continue 'outer; // without reinserting
+        for next_scanner in &q {
+            let this_scanner = Scanner {
+                beacons: coord_counts.keys().cloned().collect(),
+            };
+            if let Some(matches) = find_matches(&this_scanner, &next_scanner) {
+                dbg!("it's happening");
+                dbg!(&matches);
+                for coord in matches {
+                    *coord_counts.entry(coord).or_insert(0) += 1;
                 }
+                continue; // without reinserting
             }
-
             // we'll try again next time
             next_q.push(next_scanner.clone());
         }
