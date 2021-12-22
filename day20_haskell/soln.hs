@@ -19,7 +19,7 @@ count :: Grid -> Int
 count = sum . concatMap (map toBin)
 
 nEnhancements :: Int -> Algo -> Grid -> Grid
-nEnhancements n algo grid = foldl (\acc f -> f acc) padded (take n enhances)
+nEnhancements n algo grid = foldl (flip ($)) padded (take n enhances)
   where
     enhances =
       map (`enhance` algo) $
