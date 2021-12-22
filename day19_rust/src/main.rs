@@ -18,12 +18,13 @@ struct ConversionInstructions {
     from_idx: usize,
     to_idx: usize,
     subtract_diff: Coord,
-    reverse_arrangement: Arrangement,
+    reverse_arrangements: [Arrangement; 2],
 }
 
 impl ConversionInstructions {
     fn apply(&self, coord: Coord) -> Coord {
-        (coord - self.subtract_diff).reverse_arrangement(self.reverse_arrangement)
+        (coord - self.subtract_diff).reverse_arrangement(self.reverse_arrangements[0])
+        // .reverse_arrangement(self.reverse_arrangements[1])
     }
 }
 
@@ -60,7 +61,7 @@ fn conversion_path(
 fn main() {
     let parsed = parse(include_str!("../sample"));
     let matches = find_commonalities(&parsed);
-    dbg!(&matches[0]);
+    // dbg!(&matches[0]);
 
     let beacons_in_scanner_0_coordinates = matches
         .iter()
@@ -91,7 +92,7 @@ fn main() {
                     from_idx: mach.b_idx,
                     to_idx: mach.a_idx,
                     subtract_diff: -mach.a_diff_b,
-                    reverse_arrangement: mach.a_arr,
+                    reverse_arrangements: [mach.a_arr, mach.b_arr],
                 },
             );
         // to scanner b from scanner a
@@ -104,86 +105,107 @@ fn main() {
                     from_idx: mach.a_idx,
                     to_idx: mach.b_idx,
                     subtract_diff: mach.a_diff_b,
-                    reverse_arrangement: mach.b_arr,
+                    reverse_arrangements: [mach.b_arr, mach.a_arr],
                 },
             );
     }
 
-    let mut found_beacons_by_scanner_idx = HashMap::new();
-
-    let matches_by_a_idx = matches.iter().into_group_map_by(|m| m.a_idx);
-    for (a_idx, matches) in matches_by_a_idx {
-        found_beacons_by_scanner_idx
-            .entry(a_idx)
-            .or_insert(HashSet::new())
-            .extend(
-                matches
-                    .iter()
-                    .map(|m| {
-                        m.a_beacons
-                            .iter()
-                            .map(move |beacon| beacon.reverse_arrangement(m.a_arr))
-                            .chain(m.b_beacons.iter().map(move |beacon| {
-                                (*beacon + m.a_diff_b).reverse_arrangement(m.a_arr)
-                            }))
-                    })
-                    .flatten(),
-            );
-    }
-
-    let matches_by_b_idx = matches.iter().into_group_map_by(|m| m.b_idx);
-    for (b_idx, matches) in matches_by_b_idx {
-        found_beacons_by_scanner_idx
-            .entry(b_idx)
-            .or_insert(HashSet::new())
-            .extend(
-                matches
-                    .iter()
-                    .map(|m| {
-                        m.b_beacons
-                            .iter()
-                            .map(move |beacon| beacon.reverse_arrangement(m.b_arr))
-                            .chain(m.a_beacons.iter().map(move |beacon| {
-                                (*beacon - m.a_diff_b).reverse_arrangement(m.b_arr)
-                            }))
-                    })
-                    .flatten(),
-            );
-    }
-
-    let path = conversion_path(&convert_map, 1, 0, 0).unwrap();
-    dbg!(&path);
-    let test = found_beacons_by_scanner_idx
-        .get(&1)
-        .unwrap()
-        .iter()
-        .copied()
-        .map(|mut beacon| {
-            for instruction in path.iter() {
-                beacon = instruction.apply(beacon);
-            }
-            beacon
-        });
-    dbg!(test.collect_vec());
+    // let mut found_beacons_by_scanner_idx = HashMap::new();
+    //
+    // let matches_by_a_idx = matches.iter().into_group_map_by(|m| m.a_idx);
+    // for (a_idx, matches) in matches_by_a_idx {
+    //     found_beacons_by_scanner_idx
+    //         .entry(a_idx)
+    //         .or_insert(HashSet::new())
+    //         .extend(
+    //             matches
+    //                 .iter()
+    //                 .map(|m| {
+    //                     m.a_beacons
+    //                         .iter()
+    //                         .map(move |beacon| beacon.reverse_arrangement(m.a_arr))
+    //                         .chain(m.b_beacons.iter().map(move |beacon| {
+    //                             (*beacon + m.a_diff_b)
+    //                                 .reverse_arrangement(m.a_arr)
+    //                                 .reverse_arrangement(m.b_arr)
+    //                         }))
+    //                 })
+    //                 .flatten(),
+    //         );
+    // }
+    //
+    // let matches_by_b_idx = matches.iter().into_group_map_by(|m| m.b_idx);
+    // for (b_idx, matches) in matches_by_b_idx {
+    //     found_beacons_by_scanner_idx
+    //         .entry(b_idx)
+    //         .or_insert(HashSet::new())
+    //         .extend(
+    //             matches
+    //                 .iter()
+    //                 .map(|m| {
+    //                     m.b_beacons
+    //                         .iter()
+    //                         .map(move |beacon| beacon.reverse_arrangement(m.b_arr))
+    //                         .chain(m.a_beacons.iter().map(move |beacon| {
+    //                             (*beacon - m.a_diff_b)
+    //                                 .reverse_arrangement(m.b_arr)
+    //                                 .reverse_arrangement(m.a_arr)
+    //                         }))
+    //                 })
+    //                 .flatten(),
+    //         );
+    // }
 
     let mut scanner_0_beacons = HashSet::new();
-    scanner_0_beacons.extend(found_beacons_by_scanner_idx.remove(&0).unwrap());
-    dbg!(scanner_0_beacons.len());
-    //dbg!(found_beacons_by_scanner_idx.iter().map(|(idx, beacons)| (idx, beacons.len())).collect_vec());
-
-    for (scanner_idx, beacons) in found_beacons_by_scanner_idx.into_iter() {
-        let mut beacons = beacons.into_iter().collect_vec();
-        let path = conversion_path(&convert_map, scanner_idx, 0, 0).unwrap();
-        for instructions in path {
-            beacons = beacons
-                .into_iter()
-                .map(|beacon| instructions.apply(beacon))
-                .collect();
+    for mach in matches {
+        if mach.a_idx == 0 {
+            scanner_0_beacons.extend(
+                mach.a_beacons
+                    .iter()
+                    .map(|beacon| beacon.reverse_arrangement(mach.a_arr)),
+            );
+        } else {
+            let path = conversion_path(&convert_map, mach.a_idx, 0, 0).unwrap();
+            scanner_0_beacons.extend(mach.a_beacons.iter().copied().map(|mut beacon| {
+                beacon = beacon.reverse_arrangement(mach.a_arr);
+                for conv in &path {
+                    beacon = conv.apply(beacon);
+                }
+                beacon
+            }))
         }
-        scanner_0_beacons.extend(beacons);
     }
+    dbg!(scanner_0_beacons);
 
-    dbg!(scanner_0_beacons.len());
+    // let path = conversion_path(&convert_map, 1, 0, 0).unwrap();
+    // dbg!(&path);
+    // let beacons = parsed[1].beacons.clone();
+    // let test = beacons.iter().cloned().map(|mut beacon| {
+    //     for instruction in path.iter() {
+    //         beacon = instruction.apply(beacon);
+    //     }
+    //     beacon
+    // });
+    // dbg!(test.collect_vec());
+
+    // let mut scanner_0_beacons = HashSet::new();
+    // scanner_0_beacons.extend(found_beacons_by_scanner_idx.remove(&0).unwrap());
+    // dbg!(scanner_0_beacons.len());
+    // //dbg!(found_beacons_by_scanner_idx.iter().map(|(idx, beacons)| (idx, beacons.len())).collect_vec());
+    //
+    // for (scanner_idx, beacons) in found_beacons_by_scanner_idx.into_iter() {
+    //     let mut beacons = beacons.into_iter().collect_vec();
+    //     let path = conversion_path(&convert_map, scanner_idx, 0, 0).unwrap();
+    //     for instructions in path {
+    //         beacons = beacons
+    //             .into_iter()
+    //             .map(|beacon| instructions.apply(beacon))
+    //             .collect();
+    //     }
+    //     scanner_0_beacons.extend(beacons);
+    // }
+    //
+    // dbg!(scanner_0_beacons.len());
 }
 
 #[derive(Debug)]
