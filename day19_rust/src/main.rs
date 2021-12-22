@@ -1,6 +1,7 @@
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use std::ops::{Add, Sub};
+use std::collections::{HashMap, HashSet};
+use std::ops::{Add, Neg, Sub};
 
 lazy_static! {
     static ref ARRANGEMENTS: Vec<Arrangement> = {
@@ -12,28 +13,177 @@ lazy_static! {
     };
 }
 
+#[derive(Copy, Clone, Debug)]
+struct ConversionInstructions {
+    from_idx: usize,
+    to_idx: usize,
+    subtract_diff: Coord,
+    reverse_arrangement: Arrangement,
+}
+
+impl ConversionInstructions {
+    fn apply(&self, coord: Coord) -> Coord {
+        (coord - self.subtract_diff).reverse_arrangement(self.reverse_arrangement)
+    }
+}
+
+type ConversionToFromMap = HashMap<usize, HashMap<usize, ConversionInstructions>>;
+
+fn conversion_path(
+    map: &ConversionToFromMap,
+    from_idx: usize,
+    to_idx: usize,
+    depth: usize,
+) -> Option<Vec<ConversionInstructions>> {
+    if from_idx == to_idx {
+        return None;
+    }
+
+    // hax
+    if depth == 100 {
+        return None;
+    }
+
+    if let Some(conversion_instructions) = map.get(&to_idx).and_then(|map| map.get(&from_idx)) {
+        return Some(vec![conversion_instructions.clone()]);
+    }
+
+    for (inner_from_idx, inner_instructions) in map.get(&to_idx).unwrap().iter() {
+        if let Some(mut path) = conversion_path(map, from_idx, *inner_from_idx, depth + 1) {
+            path.push(*inner_instructions);
+            return Some(path);
+        }
+    }
+    None
+}
+
 fn main() {
     let parsed = parse(include_str!("../sample"));
-    let comms = find_commonalities(&parsed);
-    let comm = &comms[0];
-    assert_eq!(comm.a_idx, 0);
-    assert_eq!(comm.b_idx, 1);
+    let matches = find_commonalities(&parsed);
+    dbg!(&matches[0]);
 
-    let arr1 = comm.a_arr;
-    let arr2 = comm.b_arr;
-    let some_beacon = comm.b_beacons[0];
-    let there = some_beacon.in_arrangement(arr1);
-    let there_and_back = there.reverse_arrangement(arr1);
-    assert_eq!(some_beacon, there_and_back);
-    dbg!(comm
-        .b_beacons
+    let beacons_in_scanner_0_coordinates = matches
         .iter()
-        .map(|beacon| {
-            (*beacon + comm.a_diff_b)
-                .reverse_arrangement(arr1)
-                .reverse_arrangement(arr2)
+        .filter(|m| m.a_idx == 0)
+        .map(|m| {
+            m.a_beacons
+                .iter()
+                .map(move |beacon| beacon.reverse_arrangement(m.a_arr))
+                .chain(
+                    m.b_beacons
+                        .iter()
+                        .map(move |beacon| (*beacon + m.a_diff_b).reverse_arrangement(m.a_arr)),
+                )
         })
-        .collect_vec());
+        .flatten()
+        .collect::<HashSet<_>>();
+
+    let mut convert_map = ConversionToFromMap::new();
+
+    for mach in &matches {
+        // to scanner a from scanner b
+        convert_map
+            .entry(mach.a_idx)
+            .or_insert(HashMap::new())
+            .insert(
+                mach.b_idx,
+                ConversionInstructions {
+                    from_idx: mach.b_idx,
+                    to_idx: mach.a_idx,
+                    subtract_diff: -mach.a_diff_b,
+                    reverse_arrangement: mach.a_arr,
+                },
+            );
+        // to scanner b from scanner a
+        convert_map
+            .entry(mach.b_idx)
+            .or_insert(HashMap::new())
+            .insert(
+                mach.a_idx,
+                ConversionInstructions {
+                    from_idx: mach.a_idx,
+                    to_idx: mach.b_idx,
+                    subtract_diff: mach.a_diff_b,
+                    reverse_arrangement: mach.b_arr,
+                },
+            );
+    }
+
+    let mut found_beacons_by_scanner_idx = HashMap::new();
+
+    let matches_by_a_idx = matches.iter().into_group_map_by(|m| m.a_idx);
+    for (a_idx, matches) in matches_by_a_idx {
+        found_beacons_by_scanner_idx
+            .entry(a_idx)
+            .or_insert(HashSet::new())
+            .extend(
+                matches
+                    .iter()
+                    .map(|m| {
+                        m.a_beacons
+                            .iter()
+                            .map(move |beacon| beacon.reverse_arrangement(m.a_arr))
+                            .chain(m.b_beacons.iter().map(move |beacon| {
+                                (*beacon + m.a_diff_b).reverse_arrangement(m.a_arr)
+                            }))
+                    })
+                    .flatten(),
+            );
+    }
+
+    let matches_by_b_idx = matches.iter().into_group_map_by(|m| m.b_idx);
+    for (b_idx, matches) in matches_by_b_idx {
+        found_beacons_by_scanner_idx
+            .entry(b_idx)
+            .or_insert(HashSet::new())
+            .extend(
+                matches
+                    .iter()
+                    .map(|m| {
+                        m.b_beacons
+                            .iter()
+                            .map(move |beacon| beacon.reverse_arrangement(m.b_arr))
+                            .chain(m.a_beacons.iter().map(move |beacon| {
+                                (*beacon - m.a_diff_b).reverse_arrangement(m.b_arr)
+                            }))
+                    })
+                    .flatten(),
+            );
+    }
+
+    let path = conversion_path(&convert_map, 1, 0, 0).unwrap();
+    dbg!(&path);
+    let test = found_beacons_by_scanner_idx
+        .get(&1)
+        .unwrap()
+        .iter()
+        .copied()
+        .map(|mut beacon| {
+            for instruction in path.iter() {
+                beacon = instruction.apply(beacon);
+            }
+            beacon
+        });
+    dbg!(test.collect_vec());
+
+    let mut scanner_0_beacons = HashSet::new();
+    scanner_0_beacons.extend(found_beacons_by_scanner_idx.remove(&0).unwrap());
+    dbg!(scanner_0_beacons.len());
+    //dbg!(found_beacons_by_scanner_idx.iter().map(|(idx, beacons)| (idx, beacons.len())).collect_vec());
+
+    for (scanner_idx, beacons) in found_beacons_by_scanner_idx.into_iter() {
+        let mut beacons = beacons.into_iter().collect_vec();
+        let path = conversion_path(&convert_map, scanner_idx, 0, 0).unwrap();
+        for instructions in path {
+            beacons = beacons
+                .into_iter()
+                .map(|beacon| instructions.apply(beacon))
+                .collect();
+        }
+        scanner_0_beacons.extend(beacons);
+    }
+
+    dbg!(scanner_0_beacons.len());
 }
 
 #[derive(Debug)]
@@ -145,6 +295,18 @@ impl Add for Coord {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
             z: self.z + rhs.z,
+        }
+    }
+}
+
+impl Neg for Coord {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Coord {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
         }
     }
 }
