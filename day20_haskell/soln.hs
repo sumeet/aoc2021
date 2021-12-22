@@ -4,6 +4,7 @@ import Data.Bits (Bits (shiftL))
 import Data.List (intercalate)
 import Data.List.Extra ((!?))
 import Data.Maybe (fromMaybe)
+import Debug.Trace (traceShowId)
 
 data Px = On | Off deriving (Show)
 
@@ -20,11 +21,19 @@ count = sum . concatMap (map toBin)
 
 main :: IO ()
 main = do
-  inputLines <- lines <$> readFile "./input"
+  inputLines <- lines <$> readFile "./sample"
   let algo = parseAlgo $ head inputLines
   let grid = parseGrid $ drop 2 inputLines
-  putStrLn $ dump $ enhance (enhance grid algo) algo
-  print $ count $ enhance (enhance grid algo) algo
+  putStrLn $ dump grid
+  putStrLn ""
+  putStrLn $ dump $ pad grid
+
+--   putStrLn $ dump grid
+--   putStrLn ""
+--   putStrLn $ dump $ enhance grid algo
+--   putStrLn ""
+--   putStrLn $ dump $ enhance (enhance grid algo) algo
+--   print $ count $ enhance (enhance grid algo) algo
 
 dump :: Grid -> String
 dump = intercalate "\n" . map (map dumpCh)
