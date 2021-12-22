@@ -5,7 +5,7 @@ import Data.List (intercalate)
 import Data.List.Extra ((!?))
 import Data.Maybe (fromMaybe)
 
-data Px = On | Off deriving (Show)
+data Px = On | Off deriving (Show, Eq)
 
 toBin :: Px -> Int
 toBin On = 1
@@ -18,16 +18,26 @@ type Grid = [[Px]]
 count :: Grid -> Int
 count = sum . concatMap (map toBin)
 
+nEnhancements :: Int -> Algo -> Grid -> Grid
+nEnhancements n algo grid = foldl (\acc f -> f acc) padded (take n enhances)
+  where
+    enhances =
+      map (`enhance` algo) $
+        cycle $
+          if head algo == On then [Off, On] else [Off]
+    padded = iterate pad grid !! (n + 3)
+
 main :: IO ()
 main = do
-  inputLines <- lines <$> readFile "./input"
+  inputLines <- lines <$> readFile "./sample"
   let algo = parseAlgo $ head inputLines
-  let origGrid = parseGrid $ drop 2 inputLines
-  let padded = (pad . pad . pad . pad . pad) origGrid
-  let enhanced = enhance (enhance padded algo) algo
-  putStrLn $ dump $ enhance (enhance padded algo) algo
-  -- 4 is hax for subtracting out the corners
-  print $ count enhanced - 4
+  let grid = parseGrid $ drop 2 inputLines
+  let part1 = nEnhancements 2 algo grid
+  putStrLn "Part 1:"
+  print $ count part1
+  let part2 = nEnhancements 50 algo grid
+  putStrLn "Part 2:"
+  print $ count part2
 
 dump :: Grid -> String
 dump = intercalate "\n" . map (map dumpCh)
@@ -36,11 +46,11 @@ dumpCh :: Px -> Char
 dumpCh On = '#'
 dumpCh Off = '.'
 
-enhance :: Grid -> Algo -> Grid
-enhance grid algo =
+enhance :: Px -> Algo -> Grid -> Grid
+enhance dflt algo grid =
   map
     ( \(y, row) ->
-        map (\x -> calc $ nbors x y) row
+        map (\x -> calc $ nbors x y dflt) row
     )
     gridIndices
   where
@@ -60,11 +70,11 @@ pad grid = [paddedRow] ++ map padRow grid ++ [paddedRow]
     rowLen = 2 + length (head grid)
     padRow row = [Off] ++ row ++ [Off]
 
-neighbors :: Grid -> Int -> Int -> [Px]
-neighbors grid x y =
+neighbors :: Grid -> Int -> Int -> Px -> [Px]
+neighbors grid x y dflt =
   map
     ( \(dx, dy) ->
-        fromMaybe Off $ (!? (dx + x)) =<< grid !? (dy + y)
+        fromMaybe dflt $ (!? (dx + x)) =<< grid !? (dy + y)
     )
     toLook
   where
