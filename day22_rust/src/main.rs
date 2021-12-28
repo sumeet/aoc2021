@@ -47,6 +47,10 @@ impl Region {
     fn overlap(&mut self, range: Range3D) {
         if let Some(intersection) = self.range.intersect(range) {
             add_region(&mut self.overlaps_with, intersection);
+
+            for flipped in self.flipped_regions.iter_mut() {
+                flipped.overlap(intersection);
+            }
         }
     }
 
@@ -100,7 +104,7 @@ struct Instruction {
 }
 
 fn main() {
-    let input = include_str!("../smallsample2");
+    let input = include_str!("../input");
     let instructions = input.lines().map(parse_line).collect_vec();
     let mut regions = vec![];
     for instruction in instructions {
@@ -110,7 +114,6 @@ fn main() {
             remove_region(&mut regions, instruction.range);
         }
     }
-    dbg!(&regions);
     dbg!(regions.iter().map(|r| r.volume()).sum::<i128>());
 }
 
