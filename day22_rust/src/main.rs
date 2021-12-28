@@ -20,30 +20,28 @@ impl Region {
     }
 }
 
-fn add_region(mut to: Vec<Region>, new_range: Range3D) -> Vec<Region> {
-    for region in &mut to {
+fn add_region(to: &mut Vec<Region>, new_range: Range3D) {
+    for region in to.iter_mut() {
         region.overlap(new_range);
     }
     to.push(Region::new(new_range));
-    to
 }
 
-fn remove_region(mut to: Vec<Region>, remove_range: Range3D) -> Vec<Region> {
-    for region in &mut to {
+fn remove_region(to: &mut Vec<Region>, remove_range: Range3D) {
+    for region in to.iter_mut() {
         region.remove(remove_range);
     }
-    to
 }
 
 impl Region {
-    fn volume(&self) -> u128 {
+    fn volume(&self) -> i128 {
         self.range.volume()
             - self
                 .flipped_regions
                 .iter()
                 .map(|r| r.volume())
-                .sum::<u128>()
-            - self.overlaps_with.iter().map(|r| r.volume()).sum::<u128>()
+                .sum::<i128>()
+            - self.overlaps_with.iter().map(|r| r.volume()).sum::<i128>()
     }
 
     fn overlap(&mut self, range: Range3D) {
@@ -52,7 +50,11 @@ impl Region {
         }
     }
 
-    fn remove(&mut self, range: Range3D) {}
+    fn remove(&mut self, range: Range3D) {
+        if let Some(removal_intersection) = self.range.intersect(range) {
+            add_region(&mut self.flipped_regions, removal_intersection);
+        }
+    }
 }
 
 fn range_intersect((a1, a2): Range, (b1, b2): Range) -> Option<Range> {
@@ -78,10 +80,10 @@ impl Range3D {
         Some(Self { x, y, z })
     }
 
-    fn volume(&self) -> u128 {
+    fn volume(&self) -> i128 {
         [self.x, self.y, self.z]
             .iter()
-            .map(|(a, b)| (a - b).abs() as u128)
+            .map(|(a, b)| (a - b).abs() as i128)
             .sum()
     }
 }
@@ -95,6 +97,16 @@ struct Instruction {
 fn main() {
     let input = include_str!("../smallsample2");
     let instructions = input.lines().map(parse_line).collect_vec();
+    let mut regions = vec![];
+    for instruction in instructions {
+        if instruction.on_or_off {
+            add_region(&mut regions, instruction.range);
+        } else {
+            remove_region(&mut regions, instruction.range);
+        }
+    }
+    dbg!(regions);
+    //dbg!(regions.iter().map(|r| r.volume()).sum::<i128>());
 }
 
 // "on x=-27877..-18112,y=70267..89349,z=24999..39366"
