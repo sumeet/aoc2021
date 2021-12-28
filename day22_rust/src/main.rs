@@ -7,7 +7,7 @@ type Range = (isize, isize);
 struct Region {
     range: Range3D,
     flipped_regions: Vec<Region>,
-    overlaps_with: Vec<Range3D>,
+    overlaps_with: Vec<Region>,
 }
 
 impl Region {
@@ -46,13 +46,18 @@ impl Region {
 
     fn overlap(&mut self, range: Range3D) {
         if let Some(intersection) = self.range.intersect(range) {
-            self.overlaps_with.push(intersection);
+            add_region(&mut self.overlaps_with, intersection);
         }
     }
 
     fn remove(&mut self, range: Range3D) {
         if let Some(removal_intersection) = self.range.intersect(range) {
             add_region(&mut self.flipped_regions, removal_intersection);
+
+            // not sure if this is right
+            for overlap in self.overlaps_with.iter_mut() {
+                overlap.remove(removal_intersection);
+            }
         }
     }
 }
