@@ -58,7 +58,6 @@ impl Region {
         if let Some(removal_intersection) = self.range.intersect(range) {
             add_region(&mut self.flipped_regions, removal_intersection);
 
-            // not sure if this is right
             for overlap in self.overlaps_with.iter_mut() {
                 overlap.remove(removal_intersection);
             }
