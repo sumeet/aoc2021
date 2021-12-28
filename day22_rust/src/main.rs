@@ -83,8 +83,8 @@ impl Range3D {
     fn volume(&self) -> i128 {
         [self.x, self.y, self.z]
             .iter()
-            .map(|(a, b)| (a - b).abs() as i128)
-            .sum()
+            .map(|(a, b)| (a - b - 1).abs() as i128)
+            .product()
     }
 }
 
@@ -105,8 +105,8 @@ fn main() {
             remove_region(&mut regions, instruction.range);
         }
     }
-    dbg!(regions);
-    //dbg!(regions.iter().map(|r| r.volume()).sum::<i128>());
+    dbg!(&regions);
+    dbg!(regions.iter().map(|r| r.volume()).sum::<i128>());
 }
 
 // "on x=-27877..-18112,y=70267..89349,z=24999..39366"
