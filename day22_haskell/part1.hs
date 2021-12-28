@@ -59,7 +59,7 @@ parseLine s =
 
 main :: IO ()
 main = do
-  s <- readFile "input"
+  s <- readFile "smallsample2"
   let ls = lines s
   let instructions = mapMaybe parseLine ls
   let grid = foldl runInstruction Map.empty instructions
