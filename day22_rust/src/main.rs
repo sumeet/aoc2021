@@ -11,6 +11,31 @@ struct Region {
 }
 
 impl Region {
+    fn new(range: Range3D) -> Self {
+        Self {
+            range,
+            flipped_regions: vec![],
+            overlaps_with: vec![],
+        }
+    }
+}
+
+fn add_region(mut to: Vec<Region>, new_range: Range3D) -> Vec<Region> {
+    for region in &mut to {
+        region.overlap(new_range);
+    }
+    to.push(Region::new(new_range));
+    to
+}
+
+fn remove_region(mut to: Vec<Region>, remove_range: Range3D) -> Vec<Region> {
+    for region in &mut to {
+        region.remove(remove_range);
+    }
+    to
+}
+
+impl Region {
     fn volume(&self) -> u128 {
         self.range.volume()
             - self
@@ -20,6 +45,14 @@ impl Region {
                 .sum::<u128>()
             - self.overlaps_with.iter().map(|r| r.volume()).sum::<u128>()
     }
+
+    fn overlap(&mut self, range: Range3D) {
+        if let Some(intersection) = self.range.intersect(range) {
+            self.overlaps_with.push(intersection);
+        }
+    }
+
+    fn remove(&mut self, range: Range3D) {}
 }
 
 fn range_intersect((a1, a2): Range, (b1, b2): Range) -> Option<Range> {
@@ -38,7 +71,7 @@ struct Range3D {
 }
 
 impl Range3D {
-    fn intersect(&self, other: &Self) -> Option<Self> {
+    fn intersect(&self, other: Self) -> Option<Self> {
         let x = range_intersect(self.x, other.x)?;
         let y = range_intersect(self.y, other.y)?;
         let z = range_intersect(self.z, other.z)?;
