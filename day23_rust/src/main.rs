@@ -1,3 +1,4 @@
+#![feature(iter_advance_by)]
 // sample:
 // #############
 // #...........#
@@ -5,8 +6,9 @@
 //   #A#D#C#A#
 //   #########
 
-use pathfinding::prelude::dijkstra;
+use pathfinding::prelude::{bfs, dfs, dijkstra};
 use std::fmt::{Formatter, Write};
+use std::str::FromStr;
 
 const ENERGY_PER_STEP: [usize; 4] = [1, 10, 100, 1000];
 const ROOM_ENTRANCES: [usize; 4] = [2, 4, 6, 8];
@@ -21,6 +23,55 @@ fn energy_required(amphipod: Amphipod, num_steps: usize) -> usize {
 struct State {
     hallway: [Space; 11],
     rooms: [[Space; 2]; 4],
+}
+
+impl From<char> for Space {
+    fn from(c: char) -> Self {
+        match c {
+            '.' => Space::Empty,
+            'A' => Space::Amphipod(Amphipod::A),
+            'B' => Space::Amphipod(Amphipod::B),
+            'C' => Space::Amphipod(Amphipod::C),
+            'D' => Space::Amphipod(Amphipod::D),
+            _ => panic!("Invalid character: {}", c),
+        }
+    }
+}
+
+impl FromStr for State {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut lines = s.lines();
+        // skip the first line
+        lines.next().unwrap();
+
+        // the next line is the hallway
+        let mut hallway_line = lines.next().unwrap().chars();
+        // skip the "#"
+        hallway_line.advance_by(1).unwrap();
+        let mut hallway = [Space::Empty; 11];
+        for (i, hallway_c) in hallway_line.take(HALLWAY_MAX + 1).enumerate() {
+            hallway[i] = hallway_c.into();
+        }
+
+        // the next line is the top of the rooms
+        let mut rooms = [[Space::Empty; 2]; 4];
+        let top_room = lines.next().unwrap().chars();
+        let bottom_room = lines.next().unwrap().chars();
+        for (i, room) in [top_room, bottom_room].iter_mut().enumerate() {
+            room.advance_by(3).unwrap();
+            rooms[0][i] = room.next().unwrap().into();
+            room.advance_by(1).unwrap();
+            rooms[1][i] = room.next().unwrap().into();
+            room.advance_by(1).unwrap();
+            rooms[2][i] = room.next().unwrap().into();
+            room.advance_by(1).unwrap();
+            rooms[3][i] = room.next().unwrap().into();
+        }
+
+        Ok(Self { hallway, rooms })
+    }
 }
 
 impl std::fmt::Display for State {
@@ -82,6 +133,13 @@ impl State {
         assert_ne!(self.rooms[room][room_pos], Space::Empty);
         self.rooms[room][room_pos] = Space::Empty;
         self
+    }
+
+    fn amphipods_in_room(&self, room: usize) -> impl Iterator<Item = Amphipod> + '_ {
+        self.rooms[room].iter().filter_map(|space| match space {
+            Space::Amphipod(amphipod) => Some(*amphipod),
+            _ => None,
+        })
     }
 
     fn is_done(&self) -> bool {
@@ -157,12 +215,12 @@ fn successors(state: &State) -> Vec<(State, usize)> {
         match spaces {
             [Empty, Empty] => (),
             [Amphipod(a), _] => {
-                // one step to get out into the hallway
-                let mut num_steps = 1;
                 let entrance = ROOM_ENTRANCES[room_no];
-                for hallway_pos in Route::new(entrance, HALLWAY_MIN).0 {
-                    num_steps += 1;
-
+                for (num_steps, hallway_pos) in Route::new(entrance, HALLWAY_MIN)
+                    .0
+                    .enumerate()
+                    .chain(Route::new(entrance, HALLWAY_MAX).0.enumerate())
+                {
                     if state.hallway[hallway_pos] != Empty {
                         break;
                     }
@@ -173,30 +231,18 @@ fn successors(state: &State) -> Vec<(State, usize)> {
                             state
                                 .empty_room_pos(room_no, 0)
                                 .fill_hallway(hallway_pos, a),
-                            energy_required(a, num_steps),
-                        ));
-                    }
-                }
-                num_steps = 1;
-                for hallway_pos in Route::new(entrance, HALLWAY_MAX).0 {
-                    num_steps += 1;
-
-                    if state.hallway[hallway_pos] != Empty {
-                        break;
-                    }
-
-                    // not allowed to stop in front of a room entrance
-                    if !ROOM_ENTRANCES.contains(&hallway_pos) {
-                        succs.push((
-                            state
-                                .empty_room_pos(room_no, 0)
-                                .fill_hallway(hallway_pos, a),
-                            energy_required(a, num_steps),
+                            // one step to get out into the hallway
+                            // and enumerate is indexed by 0
+                            energy_required(a, num_steps + 2),
                         ));
                     }
                 }
             }
             [Empty, Amphipod(a)] => {
+                if a as usize == room_no {
+                    // if we're already in the destination room, no point in moving
+                    continue;
+                }
                 // just move to the other spot... if we want to move into the hallway, we can do it
                 // once we're there using the above step
                 succs.push((
@@ -233,6 +279,14 @@ fn hallway_succs(state: &State, succs: &mut Vec<(State, usize)>) {
         if !room_higher_is_open && !room_lower_is_open {
             continue;
         }
+        // can't go in the room if there's a non-destination amphipod already in the room
+        if state
+            .amphipods_in_room(amphipod as usize)
+            .any(|a| a != amphipod)
+        {
+            continue;
+        }
+
         let (route, num_steps) = Route::new(hallway_pos, ROOM_ENTRANCES[amphipod as usize]);
         if route
             .into_iter()
@@ -312,26 +366,43 @@ impl Iterator for Route {
 }
 
 fn main() {
-    let init = State::sample();
-    println!("init:");
-    println!("{}", init);
-    println!();
-    for (succ, _) in successors(&init) {
-        println!("{}", succ);
+    // let init = State::sample();
+    // println!("init:");
+    // println!("{}", init);
+    // println!();
+    // for (succ, _) in successors(&init) {
+    //     println!("{}", succ);
+    //
+    //     for (succ_succ, _) in successors(&succ) {
+    //         let next_succ = format!("{}", succ_succ);
+    //         for line in next_succ.lines() {
+    //             println!("    {}", line);
+    //         }
+    //
+    //         for (succ_succ_succ, _) in successors(&succ_succ) {
+    //             let next_succ = format!("{}", succ_succ_succ);
+    //             for line in next_succ.lines() {
+    //                 println!("        {}", line);
+    //             }
+    //         }
+    //     }
+    // }
+    let init = r#"#############
+#.....D.D.A.#
+###.#B#C#.###
+  #A#B#C#.#
+  #########"#
+        .parse()
+        .unwrap();
+    dbg!(&init);
 
-        for (succ_succ, _) in successors(&succ) {
-            let next_succ = format!("{}", succ_succ);
-            for line in next_succ.lines() {
-                println!("    {}", line);
-            }
-
-            for (succ_succ_succ, _) in successors(&succ_succ) {
-                let next_succ = format!("{}", succ_succ_succ);
-                for line in next_succ.lines() {
-                    println!("        {}", line);
-                }
-            }
-        }
-    }
-    // dbg!(dijkstra(&init, successors, |s| s.is_done()));
+    dbg!(dijkstra(&init, successors, |s| s.is_done()));
+    // dbg!(dfs(
+    //     init,
+    //     |state| {
+    //         let succs = successors(state);
+    //         succs.into_iter().map(|t| t.0)
+    //     },
+    //     |s| s.is_done()
+    // ));
 }
