@@ -233,7 +233,7 @@ fn successors(state: &State) -> Vec<(State, usize)> {
                 }
             }
             [Empty, Amphipod(a), _, _] => {
-                if a as usize == room_no {
+                if a as usize == room_no && spaces[2] == Amphipod(a) && spaces[3] == Amphipod(a) {
                     // if we're already in the destination room, no point in moving
                     continue;
                 }
@@ -247,7 +247,7 @@ fn successors(state: &State) -> Vec<(State, usize)> {
                 ));
             }
             [_, Empty, Amphipod(a), _] => {
-                if a as usize == room_no {
+                if a as usize == room_no && spaces[3] == Amphipod(a) {
                     // if we're already in the destination room, no point in moving
                     continue;
                 }
@@ -406,47 +406,7 @@ impl Iterator for Route {
 }
 
 fn main() {
-    let init = SAMPLE.parse().unwrap();
-
-    println!("init:");
-    println!("{}", init);
-
-    // //     let init = r#"#############
-    // // #.....D.D.A.#
-    // // ###.#B#C#.###
-    // //   #A#B#C#.#
-    // //   #########"#
-    // //         .parse()
-    // //         .unwrap();
-    // //     dbg!(&init);
-    //
-    //     let init = r#"#############
-    // #...B.......#
-    // ###B#C#.#D###
-    //   #A#D#C#A#
-    //   #########"#
-    //         .parse()
-    //         .unwrap();
-
-    // println!();
-    for (succ, _) in successors(&init) {
-        println!("{}", succ);
-
-        // for (succ_succ, _) in successors(&succ) {
-        //     let next_succ = format!("{}", succ_succ);
-        //     for line in next_succ.lines() {
-        //         println!("    {}", line);
-        //     }
-        //
-        //     for (succ_succ_succ, _) in successors(&succ_succ) {
-        //         let next_succ = format!("{}", succ_succ_succ);
-        //         for line in next_succ.lines() {
-        //             println!("        {}", line);
-        //         }
-        //     }
-        // }
-    }
-
+    let init = INPUT.parse().unwrap();
     let (path, cost) = dijkstra(&init, successors, |s| s.is_done()).unwrap();
     for state in path {
         println!("{}", state);
