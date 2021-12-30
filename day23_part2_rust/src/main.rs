@@ -1,11 +1,4 @@
 #![feature(iter_advance_by)]
-// sample:
-// #############
-// #...........#
-// ###B#C#B#D###
-//   #A#D#C#A#
-//   #########
-
 use pathfinding::prelude::dijkstra;
 use std::fmt::{Formatter, Write};
 use std::str::FromStr;
@@ -22,7 +15,7 @@ fn energy_required(amphipod: Amphipod, num_steps: usize) -> usize {
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 struct State {
     hallway: [Space; 11],
-    rooms: [[Space; 2]; 4],
+    rooms: [[Space; 4]; 4],
 }
 
 impl From<char> for Space {
@@ -56,10 +49,13 @@ impl FromStr for State {
         }
 
         // the next line is the top of the rooms
-        let mut rooms = [[Space::Empty; 2]; 4];
+        let mut rooms = [[Space::Empty; 4]; 4];
         let top_room = lines.next().unwrap().chars();
         let bottom_room = lines.next().unwrap().chars();
-        for (i, room) in [top_room, bottom_room].iter_mut().enumerate() {
+        for (mut i, room) in [top_room, bottom_room].iter_mut().enumerate() {
+            // special handling for part 2, the second space in the room is at the bottom
+            i = if i == 0 { 0 } else { 3 };
+
             room.advance_by(3).unwrap();
             rooms[0][i] = room.next().unwrap().into();
             room.advance_by(1).unwrap();
@@ -69,6 +65,16 @@ impl FromStr for State {
             room.advance_by(1).unwrap();
             rooms[3][i] = room.next().unwrap().into();
         }
+
+        // the middle room positions are hardcoded from the puzzle description
+        rooms[0][1] = Space::Amphipod(Amphipod::D);
+        rooms[0][2] = Space::Amphipod(Amphipod::D);
+        rooms[1][1] = Space::Amphipod(Amphipod::C);
+        rooms[1][2] = Space::Amphipod(Amphipod::B);
+        rooms[2][1] = Space::Amphipod(Amphipod::B);
+        rooms[2][2] = Space::Amphipod(Amphipod::A);
+        rooms[3][1] = Space::Amphipod(Amphipod::A);
+        rooms[3][2] = Space::Amphipod(Amphipod::C);
 
         Ok(Self { hallway, rooms })
     }
@@ -95,15 +101,17 @@ impl std::fmt::Display for State {
         self.rooms[3][0].fmt(f)?;
         f.write_str("###\n")?;
 
-        f.write_str("  #")?;
-        self.rooms[0][1].fmt(f)?;
-        f.write_char('#')?;
-        self.rooms[1][1].fmt(f)?;
-        f.write_char('#')?;
-        self.rooms[2][1].fmt(f)?;
-        f.write_char('#')?;
-        self.rooms[3][1].fmt(f)?;
-        f.write_str("#  \n")?;
+        for i in [1, 2, 3] {
+            f.write_str("  #")?;
+            self.rooms[0][i].fmt(f)?;
+            f.write_char('#')?;
+            self.rooms[1][i].fmt(f)?;
+            f.write_char('#')?;
+            self.rooms[2][i].fmt(f)?;
+            f.write_char('#')?;
+            self.rooms[3][i].fmt(f)?;
+            f.write_str("#  \n")?;
+        }
 
         f.write_str("  #########  ")?;
         Ok(())
@@ -147,25 +155,11 @@ impl State {
         use Space::Amphipod;
         self.rooms
             == [
-                [Amphipod(A), Amphipod(A)],
-                [Amphipod(B), Amphipod(B)],
-                [Amphipod(C), Amphipod(C)],
-                [Amphipod(D), Amphipod(D)],
+                [Amphipod(A), Amphipod(A), Amphipod(A), Amphipod(A)],
+                [Amphipod(B), Amphipod(B), Amphipod(B), Amphipod(B)],
+                [Amphipod(C), Amphipod(C), Amphipod(C), Amphipod(C)],
+                [Amphipod(D), Amphipod(D), Amphipod(D), Amphipod(D)],
             ]
-    }
-
-    fn sample() -> Self {
-        use crate::Amphipod::*;
-        use Space::*;
-        Self {
-            hallway: [Empty; 11],
-            rooms: [
-                [Amphipod(B), Amphipod(A)],
-                [Amphipod(C), Amphipod(D)],
-                [Amphipod(B), Amphipod(C)],
-                [Amphipod(D), Amphipod(A)],
-            ],
-        }
     }
 }
 
@@ -213,8 +207,8 @@ fn successors(state: &State) -> Vec<(State, usize)> {
 
     for (room_no, spaces) in state.rooms.iter().copied().enumerate() {
         match spaces {
-            [Empty, Empty] => (),
-            [Amphipod(a), _] => {
+            [Empty, Empty, Empty, Empty] => (),
+            [Amphipod(a), _, _, _] => {
                 let entrance = ROOM_ENTRANCES[room_no];
                 for (num_steps, hallway_pos) in Route::new(entrance, HALLWAY_MIN).0.enumerate() {
                     if state.hallway[hallway_pos] != Empty {
@@ -251,7 +245,7 @@ fn successors(state: &State) -> Vec<(State, usize)> {
                     }
                 }
             }
-            [Empty, Amphipod(a)] => {
+            [Empty, Amphipod(a), _, _] => {
                 if a as usize == room_no {
                     // if we're already in the destination room, no point in moving
                     continue;
@@ -265,6 +259,8 @@ fn successors(state: &State) -> Vec<(State, usize)> {
                     energy_required(a, 1),
                 ));
             }
+            // gotta delete the catchall
+            _ => todo!(),
         }
     }
 
@@ -379,7 +375,10 @@ impl Iterator for Route {
 }
 
 fn main() {
-    let init = INPUT.parse().unwrap();
+    let init = SAMPLE.parse().unwrap();
+
+    println!("init:");
+    println!("{}", init);
 
     let (path, cost) = dijkstra(&init, successors, |s| s.is_done()).unwrap();
     for state in path {
@@ -404,8 +403,6 @@ fn main() {
     //         .parse()
     //         .unwrap();
 
-    // println!("init:");
-    // println!("{}", init);
     // println!();
     // for (succ, _) in successors(&init) {
     //     println!("{}", succ);
@@ -426,8 +423,16 @@ fn main() {
     // }
 }
 
+#[allow(unused)]
 const INPUT: &str = r#"#############
 #...........#
 ###B#B#D#D###
   #C#A#A#C#
+  #########"#;
+
+#[allow(unused)]
+const SAMPLE: &str = r#"#############
+#...........#
+###B#C#B#D###
+  #A#D#C#A#
   #########"#;
