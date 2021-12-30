@@ -210,38 +210,25 @@ fn successors(state: &State) -> Vec<(State, usize)> {
             [Empty, Empty, Empty, Empty] => (),
             [Amphipod(a), _, _, _] => {
                 let entrance = ROOM_ENTRANCES[room_no];
-                for (num_steps, hallway_pos) in Route::new(entrance, HALLWAY_MIN).0.enumerate() {
-                    if state.hallway[hallway_pos] != Empty {
-                        break;
-                    }
+                let going_left = Route::new(entrance, HALLWAY_MIN).0.enumerate();
+                let going_right = Route::new(entrance, HALLWAY_MAX).0.enumerate();
+                for route in [going_left, going_right] {
+                    'inner: for (num_steps, hallway_pos) in route {
+                        if state.hallway[hallway_pos] != Empty {
+                            break 'inner;
+                        }
 
-                    // not allowed to stop in front of a room entrance
-                    if !ROOM_ENTRANCES.contains(&hallway_pos) {
-                        succs.push((
-                            state
-                                .empty_room_pos(room_no, 0)
-                                .fill_hallway(hallway_pos, a),
-                            // one step to get out into the hallway
-                            // and enumerate is indexed by 0
-                            energy_required(a, num_steps + 2),
-                        ));
-                    }
-                }
-                for (num_steps, hallway_pos) in Route::new(entrance, HALLWAY_MAX).0.enumerate() {
-                    if state.hallway[hallway_pos] != Empty {
-                        break;
-                    }
-
-                    // not allowed to stop in front of a room entrance
-                    if !ROOM_ENTRANCES.contains(&hallway_pos) {
-                        succs.push((
-                            state
-                                .empty_room_pos(room_no, 0)
-                                .fill_hallway(hallway_pos, a),
-                            // one step to get out into the hallway
-                            // and enumerate is indexed by 0
-                            energy_required(a, num_steps + 2),
-                        ));
+                        // not allowed to stop in front of a room entrance
+                        if !ROOM_ENTRANCES.contains(&hallway_pos) {
+                            succs.push((
+                                state
+                                    .empty_room_pos(room_no, 0)
+                                    .fill_hallway(hallway_pos, a),
+                                // one step to get out into the hallway
+                                // and enumerate is indexed by 0
+                                energy_required(a, num_steps + 2),
+                            ));
+                        }
                     }
                 }
             }
@@ -259,8 +246,34 @@ fn successors(state: &State) -> Vec<(State, usize)> {
                     energy_required(a, 1),
                 ));
             }
-            // gotta delete the catchall
-            _ => todo!(),
+            [_, Empty, Amphipod(a), _] => {
+                if a as usize == room_no {
+                    // if we're already in the destination room, no point in moving
+                    continue;
+                }
+                // just move to the other spot... if we want to move into the hallway, we can do it
+                // once we're there using the above step
+                succs.push((
+                    state
+                        .empty_room_pos(room_no, 2)
+                        .fill_room_pos(room_no, 1, a),
+                    energy_required(a, 1),
+                ));
+            }
+            [_, _, Empty, Amphipod(a)] => {
+                if a as usize == room_no {
+                    // if we're already in the destination room, no point in moving
+                    continue;
+                }
+                // just move to the other spot... if we want to move into the hallway, we can do it
+                // once we're there using the above step
+                succs.push((
+                    state
+                        .empty_room_pos(room_no, 3)
+                        .fill_room_pos(room_no, 2, a),
+                    energy_required(a, 1),
+                ));
+            }
         }
     }
 
@@ -283,9 +296,11 @@ fn hallway_succs(state: &State, succs: &mut Vec<(State, usize)>) {
                 }
             })
     {
-        let room_higher_is_open = state.rooms[amphipod as usize][0] == Empty;
-        let room_lower_is_open = room_higher_is_open && state.rooms[amphipod as usize][1] == Empty;
-        if !room_higher_is_open && !room_lower_is_open {
+        let room_0_is_open = state.rooms[amphipod as usize][0] == Empty;
+        let room_1_is_open = room_0_is_open && state.rooms[amphipod as usize][1] == Empty;
+        let room_2_is_open = room_1_is_open && state.rooms[amphipod as usize][2] == Empty;
+        let room_3_is_open = room_2_is_open && state.rooms[amphipod as usize][3] == Empty;
+        if !room_0_is_open && !room_1_is_open && !room_2_is_open && !room_3_is_open {
             continue;
         }
         // can't go in the room if there's a non-destination amphipod already in the room
@@ -301,7 +316,7 @@ fn hallway_succs(state: &State, succs: &mut Vec<(State, usize)>) {
             .into_iter()
             .all(|pos| matches!(state.hallway[pos], Empty))
         {
-            if room_higher_is_open {
+            if room_0_is_open {
                 succs.push((
                     state
                         .empty_hallway(hallway_pos)
@@ -309,12 +324,28 @@ fn hallway_succs(state: &State, succs: &mut Vec<(State, usize)>) {
                     energy_required(amphipod, num_steps + 1),
                 ));
             }
-            if room_lower_is_open {
+            if room_1_is_open {
                 succs.push((
                     state
                         .empty_hallway(hallway_pos)
                         .fill_room_pos(amphipod as usize, 1, amphipod),
                     energy_required(amphipod, num_steps + 2),
+                ));
+            }
+            if room_2_is_open {
+                succs.push((
+                    state
+                        .empty_hallway(hallway_pos)
+                        .fill_room_pos(amphipod as usize, 2, amphipod),
+                    energy_required(amphipod, num_steps + 3),
+                ));
+            }
+            if room_3_is_open {
+                succs.push((
+                    state
+                        .empty_hallway(hallway_pos)
+                        .fill_room_pos(amphipod as usize, 3, amphipod),
+                    energy_required(amphipod, num_steps + 4),
                 ));
             }
         }
@@ -380,12 +411,6 @@ fn main() {
     println!("init:");
     println!("{}", init);
 
-    let (path, cost) = dijkstra(&init, successors, |s| s.is_done()).unwrap();
-    for state in path {
-        println!("{}", state);
-        println!();
-    }
-    dbg!(cost);
     // //     let init = r#"#############
     // // #.....D.D.A.#
     // // ###.#B#C#.###
@@ -404,23 +429,30 @@ fn main() {
     //         .unwrap();
 
     // println!();
-    // for (succ, _) in successors(&init) {
-    //     println!("{}", succ);
+    for (succ, _) in successors(&init) {
+        println!("{}", succ);
 
-    // for (succ_succ, _) in successors(&succ) {
-    //     let next_succ = format!("{}", succ_succ);
-    //     for line in next_succ.lines() {
-    //         println!("    {}", line);
-    //     }
-    //
-    //     for (succ_succ_succ, _) in successors(&succ_succ) {
-    //         let next_succ = format!("{}", succ_succ_succ);
-    //         for line in next_succ.lines() {
-    //             println!("        {}", line);
-    //         }
-    //     }
-    // }
-    // }
+        // for (succ_succ, _) in successors(&succ) {
+        //     let next_succ = format!("{}", succ_succ);
+        //     for line in next_succ.lines() {
+        //         println!("    {}", line);
+        //     }
+        //
+        //     for (succ_succ_succ, _) in successors(&succ_succ) {
+        //         let next_succ = format!("{}", succ_succ_succ);
+        //         for line in next_succ.lines() {
+        //             println!("        {}", line);
+        //         }
+        //     }
+        // }
+    }
+
+    let (path, cost) = dijkstra(&init, successors, |s| s.is_done()).unwrap();
+    for state in path {
+        println!("{}", state);
+        println!();
+    }
+    dbg!(cost);
 }
 
 #[allow(unused)]
