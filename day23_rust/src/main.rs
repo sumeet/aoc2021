@@ -6,7 +6,7 @@
 //   #A#D#C#A#
 //   #########
 
-use pathfinding::prelude::{bfs, dfs, dijkstra};
+use pathfinding::prelude::dijkstra;
 use std::fmt::{Formatter, Write};
 use std::str::FromStr;
 
@@ -216,11 +216,24 @@ fn successors(state: &State) -> Vec<(State, usize)> {
             [Empty, Empty] => (),
             [Amphipod(a), _] => {
                 let entrance = ROOM_ENTRANCES[room_no];
-                for (num_steps, hallway_pos) in Route::new(entrance, HALLWAY_MIN)
-                    .0
-                    .enumerate()
-                    .chain(Route::new(entrance, HALLWAY_MAX).0.enumerate())
-                {
+                for (num_steps, hallway_pos) in Route::new(entrance, HALLWAY_MIN).0.enumerate() {
+                    if state.hallway[hallway_pos] != Empty {
+                        break;
+                    }
+
+                    // not allowed to stop in front of a room entrance
+                    if !ROOM_ENTRANCES.contains(&hallway_pos) {
+                        succs.push((
+                            state
+                                .empty_room_pos(room_no, 0)
+                                .fill_hallway(hallway_pos, a),
+                            // one step to get out into the hallway
+                            // and enumerate is indexed by 0
+                            energy_required(a, num_steps + 2),
+                        ));
+                    }
+                }
+                for (num_steps, hallway_pos) in Route::new(entrance, HALLWAY_MAX).0.enumerate() {
                     if state.hallway[hallway_pos] != Empty {
                         break;
                     }
@@ -304,7 +317,7 @@ fn hallway_succs(state: &State, succs: &mut Vec<(State, usize)>) {
                 succs.push((
                     state
                         .empty_hallway(hallway_pos)
-                        .fill_room_pos(amphipod as usize, 0, amphipod),
+                        .fill_room_pos(amphipod as usize, 1, amphipod),
                     energy_required(amphipod, num_steps + 2),
                 ));
             }
@@ -366,43 +379,55 @@ impl Iterator for Route {
 }
 
 fn main() {
-    // let init = State::sample();
+    let init = INPUT.parse().unwrap();
+
+    let (path, cost) = dijkstra(&init, successors, |s| s.is_done()).unwrap();
+    for state in path {
+        println!("{}", state);
+        println!();
+    }
+    dbg!(cost);
+    // //     let init = r#"#############
+    // // #.....D.D.A.#
+    // // ###.#B#C#.###
+    // //   #A#B#C#.#
+    // //   #########"#
+    // //         .parse()
+    // //         .unwrap();
+    // //     dbg!(&init);
+    //
+    //     let init = r#"#############
+    // #...B.......#
+    // ###B#C#.#D###
+    //   #A#D#C#A#
+    //   #########"#
+    //         .parse()
+    //         .unwrap();
+
     // println!("init:");
     // println!("{}", init);
     // println!();
     // for (succ, _) in successors(&init) {
     //     println!("{}", succ);
+
+    // for (succ_succ, _) in successors(&succ) {
+    //     let next_succ = format!("{}", succ_succ);
+    //     for line in next_succ.lines() {
+    //         println!("    {}", line);
+    //     }
     //
-    //     for (succ_succ, _) in successors(&succ) {
-    //         let next_succ = format!("{}", succ_succ);
+    //     for (succ_succ_succ, _) in successors(&succ_succ) {
+    //         let next_succ = format!("{}", succ_succ_succ);
     //         for line in next_succ.lines() {
-    //             println!("    {}", line);
-    //         }
-    //
-    //         for (succ_succ_succ, _) in successors(&succ_succ) {
-    //             let next_succ = format!("{}", succ_succ_succ);
-    //             for line in next_succ.lines() {
-    //                 println!("        {}", line);
-    //             }
+    //             println!("        {}", line);
     //         }
     //     }
     // }
-    let init = r#"#############
-#.....D.D.A.#
-###.#B#C#.###
-  #A#B#C#.#
-  #########"#
-        .parse()
-        .unwrap();
-    dbg!(&init);
-
-    dbg!(dijkstra(&init, successors, |s| s.is_done()));
-    // dbg!(dfs(
-    //     init,
-    //     |state| {
-    //         let succs = successors(state);
-    //         succs.into_iter().map(|t| t.0)
-    //     },
-    //     |s| s.is_done()
-    // ));
+    // }
 }
+
+const INPUT: &str = r#"#############
+#...........#
+###B#B#D#D###
+  #C#A#A#C#
+  #########"#;
