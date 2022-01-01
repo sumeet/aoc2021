@@ -4,7 +4,10 @@ use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
 lazy_static! {
     static ref INSTRS: Vec<Instr> = include_str!("../input").lines().map(parse_instr).collect();
-    static ref ORDER: Vec<i64> = (1..=9).rev().collect();
+    // part 1
+    // static ref ORDER: Vec<i64> = (1..=9).rev().collect();
+    // part 2
+    static ref ORDER: Vec<i64> = (1..=9).collect();
     static ref CACHE: DashMap<(usize, State), (bool, i64)> = DashMap::new();
 }
 
