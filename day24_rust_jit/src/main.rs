@@ -46,7 +46,7 @@ fn main() {
                     ; mov rax, rdi
                     ; mov rcx, 10
                     ; xor rdx, rdx
-                    ; div rcx
+                    ; idiv rcx
                     ; mov rdi, rax
                     ; mov Rq(reg), rdx
                 );
@@ -85,7 +85,7 @@ fn main() {
                         dynasm!(ops
                             ; mov rax, n
                             ; xor rdx, rdx
-                            ; mul Rq(reg)
+                            ; imul Rq(reg)
                             ; mov Rq(reg), rax
                         )
                     }
@@ -93,7 +93,7 @@ fn main() {
                         dynasm!(ops
                             ; mov rax, Rq(reg2)
                             ; xor rdx, rdx
-                            ; mul Rq(reg)
+                            ; imul Rq(reg)
                             ; mov Rq(reg), rax
                         )
                     }
@@ -108,7 +108,7 @@ fn main() {
                             ; mov rax, Rq(reg)
                             ; xor rdx, rdx
                             ; mov rcx, n
-                            ; div rcx
+                            ; idiv rcx
                             ; mov Rq(reg), rdx
                         )
                     }
@@ -116,7 +116,7 @@ fn main() {
                         dynasm!(ops
                             ; mov rax, Rq(reg)
                             ; xor rdx, rdx
-                            ; div Rq(reg2)
+                            ; idiv Rq(reg2)
                             ; mov Rq(reg), rdx
                         )
                     }
@@ -133,7 +133,7 @@ fn main() {
                             ; mov rax, Rq(reg)
                             ; xor rdx, rdx
                             ; mov rcx, n
-                            ; div rcx
+                            ; idiv rcx
                             ; mov Rq(reg), rax
                         )
                     }
@@ -141,7 +141,7 @@ fn main() {
                         dynasm!(ops
                             ; mov rax, Rq(reg)
                             ; xor rdx, rdx
-                            ; div Rq(reg2)
+                            ; idiv Rq(reg2)
                             ; mov Rq(reg), rax
                         )
                     }
@@ -176,9 +176,9 @@ fn main() {
     );
 
     let exec_buf = ops.finalize().unwrap();
-    let func = unsafe { std::mem::transmute::<_, fn(u64) -> u64>(exec_buf.as_ptr()) };
+    let func = unsafe { std::mem::transmute::<_, fn(i64) -> i64>(exec_buf.as_ptr()) };
 
-    let len = 99_999_999_999_999u64;
+    // let len = 99_999_999_999_999i64;
     // let bar = ProgressBar::new(len);
     // bar.set_style(
     //     ProgressStyle::default_bar()
@@ -186,11 +186,11 @@ fn main() {
     //         .progress_chars("##-"),
     // );
 
-    let nums_to_test = (11_111_111_111_111u64..=99_999_999_999_999u64);
-    let found = nums_to_test
+    let nums_to_test = (11_111_111_111_111i64..=99_999_999_999_999i64);
+    nums_to_test
         .into_par_iter()
-        .filter(|n| n.into_decimal_digits().any(|d| d == 0))
-        .find_any(|n| func(n.reverse_decimal_digits()) == 0)
-        .unwrap();
-    dbg!(func(found));
+        // .filter(|n| n.into_decimal_digits().any(|d| d == 0))
+        .filter(|n| func(*n) == 0)
+        .for_each(|n| println!("{}", n));
+    // dbg!(found);
 }

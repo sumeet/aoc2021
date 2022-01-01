@@ -1,4 +1,5 @@
-#![feature(box_syntax)]
+use z3::ast::{Ast, Int};
+use z3::{Optimize, Params};
 
 #[derive(Debug, Copy, Clone)]
 #[repr(usize)]
@@ -25,20 +26,35 @@ impl std::str::FromStr for Register {
 }
 
 #[derive(Debug)]
-struct ALU {
-    registers: [Value; 4],
+struct ALU<'ctx> {
+    registers: [Int<'ctx>; 4],
+    ctx: &'ctx z3::Context,
+    optimizer: Optimize<'ctx>,
+    all_inputs: Vec<Int<'ctx>>,
 }
 
-impl ALU {
-    fn new() -> Self {
+impl<'ctx> ALU<'ctx> {
+    fn new(ctx: &'ctx z3::Context, solver: Optimize<'ctx>) -> Self {
         ALU {
             registers: [
-                Value::Known(0),
-                Value::Known(0),
-                Value::Known(0),
-                Value::Known(0),
+                Int::from_i64(ctx, 0).into(),
+                Int::from_i64(ctx, 0).into(),
+                Int::from_i64(ctx, 0).into(),
+                Int::from_i64(ctx, 0).into(),
             ],
+            all_inputs: vec![],
+            ctx,
+            optimizer: solver,
         }
+    }
+
+    fn next_input(&mut self) -> Int<'ctx> {
+        let next = Int::new_const(self.ctx, format!("w{}", self.all_inputs.len()));
+        self.all_inputs.push(next.clone());
+        self.optimizer.assert(&next.gt(&Int::from_i64(self.ctx, 0)));
+        self.optimizer
+            .assert(&next.lt(&Int::from_i64(self.ctx, 10)));
+        next
     }
 
     fn run_instruction(&mut self, s: &str) {
@@ -47,14 +63,18 @@ impl ALU {
         match op {
             "inp" => {
                 let reg = parts.next().unwrap().parse().unwrap();
-                self.set_register(reg, Value::Input);
+                let next_input = self.next_input();
+                self.set_register(reg, next_input);
             }
             op @ _ => {
                 let reg = parts.next().unwrap().parse().unwrap();
                 let reg_value = self.get_register_value(reg);
 
                 let next = parts.next().unwrap();
-                let val = Value::parse_num(next)
+                let val = next
+                    .parse::<i64>()
+                    .ok()
+                    .map(|v| Int::from_i64(self.ctx, v).into())
                     .unwrap_or_else(|| self.get_register_value(next.parse().unwrap()));
 
                 self.set_register(
@@ -64,7 +84,9 @@ impl ALU {
                         "mul" => reg_value * val,
                         "div" => reg_value / val,
                         "mod" => reg_value % val,
-                        "eql" => reg_value.eql(val),
+                        "eql" => reg_value
+                            ._eq(&val)
+                            .ite(&Int::from_i64(self.ctx, 1), &Int::from_i64(self.ctx, 0)),
                         otherwise => panic!("Invalid op: {}", otherwise),
                     },
                 );
@@ -72,96 +94,36 @@ impl ALU {
         }
     }
 
-    fn get_register_value(&self, reg: Register) -> Value {
+    fn get_register_value(&self, reg: Register) -> Int<'ctx> {
         self.registers[reg as usize].clone()
     }
 
-    fn set_register(&mut self, reg: Register, val: Value) {
+    fn set_register(&mut self, reg: Register, val: Int<'ctx>) {
         self.registers[reg as usize] = val;
-    }
-}
-
-#[derive(Debug, Clone)]
-enum Value {
-    Known(isize),
-    Input,
-    Add(Box<Value>, Box<Value>),
-    Mul(Box<Value>, Box<Value>),
-    Mod(Box<Value>, Box<Value>),
-    Div(Box<Value>, Box<Value>),
-    Eql(Box<Value>, Box<Value>),
-}
-
-impl Value {
-    fn parse_num(s: &str) -> Option<Self> {
-        s.parse::<isize>().ok().map(Value::Known)
-    }
-
-    fn eql(self, other: Value) -> Self {
-        match (self, other) {
-            (Value::Known(a), Value::Known(b)) => Value::Known(if a == b { 1 } else { 0 }),
-            (l, r) => Value::Eql(Box::new(l), Box::new(r)),
-        }
-    }
-}
-
-impl std::ops::Add for Value {
-    type Output = Value;
-
-    fn add(self, other: Self) -> Self::Output {
-        match (self, other) {
-            (Value::Known(0), r) => r,
-            (l, Value::Known(0)) => l,
-            (Value::Known(a), Value::Known(b)) => Value::Known(a + b),
-            (l, r) => Value::Add(box l, box r),
-        }
-    }
-}
-
-impl std::ops::Mul for Value {
-    type Output = Value;
-
-    fn mul(self, other: Self) -> Self::Output {
-        match (self, other) {
-            (Value::Known(a), Value::Known(b)) => Value::Known(a * b),
-            (Value::Known(1), r) => r,
-            (l, Value::Known(1)) => l,
-            (Value::Known(0), _) => Value::Known(0),
-            (_, Value::Known(0)) => Value::Known(0),
-            (l, r) => Value::Mul(box l, box r),
-        }
-    }
-}
-
-impl std::ops::Rem for Value {
-    type Output = Value;
-
-    fn rem(self, other: Self) -> Self::Output {
-        match (self, other) {
-            (Value::Known(a), Value::Known(b)) => Value::Known(a % b),
-            (l, r) => Value::Mod(box l, box r),
-        }
-    }
-}
-
-impl std::ops::Div for Value {
-    type Output = Value;
-
-    fn div(self, other: Self) -> Self::Output {
-        match (self, other) {
-            (Value::Known(a), Value::Known(b)) => Value::Known(a / b),
-            (l, Value::Known(1)) => l,
-            (l, r) => Value::Div(box l, box r),
-        }
     }
 }
 
 fn main() {
     let input = include_str!("../input");
-    let mut alu = ALU::new();
+    let mut config = z3::Config::new();
+    config.set_proof_generation(true);
+    let ctx = z3::Context::new(&config);
+    let optimizer = Optimize::new(&ctx);
+    let mut alu = ALU::new(&ctx, optimizer);
     for line in input.lines() {
         println!("{}", line);
         alu.run_instruction(line);
     }
-    dbg!(&alu.registers[Register::Z as usize]);
+
+    let mut input = Int::from_i64(&ctx, 0);
+    for i in &alu.all_inputs {
+        input *= Int::from_i64(&ctx, 10);
+        input += i;
+    }
+
+    alu.optimizer
+        .assert(&alu.registers[Register::Z as usize]._eq(&Int::from_i64(&ctx, 0)));
+    alu.optimizer.maximize(&input);
+    dbg!(alu.optimizer.check(&[]));
+    dbg!(alu.optimizer.get_model());
 }

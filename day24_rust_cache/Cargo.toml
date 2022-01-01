@@ -1,9 +1,11 @@
 [package]
-name = "day24_rust"
+name = "day24_rust_cache"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-z3 = "*"
+rayon = "*"
+lazy_static = "*"
+dashmap = "*"
