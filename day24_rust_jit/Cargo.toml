@@ -9,5 +9,3 @@ edition = "2021"
 dynasm = "*"
 dynasmrt = "*"
 rayon = "*"
-radixal = "*"
-indicatif = {version = "*", features = ["rayon"]}

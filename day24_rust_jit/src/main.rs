@@ -1,9 +1,8 @@
 use dynasm::dynasm;
 use dynasmrt::DynasmApi;
-use indicatif::{ParallelProgressIterator, ProgressBar, ProgressStyle};
-use radixal::IntoDigits;
+
 use rayon::prelude::{
-    IntoParallelIterator, IntoParallelRefIterator, ParallelBridge, ParallelIterator,
+    IntoParallelIterator, ParallelIterator,
 };
 
 fn to_rq(reg: char) -> u8 {
@@ -178,19 +177,10 @@ fn main() {
     let exec_buf = ops.finalize().unwrap();
     let func = unsafe { std::mem::transmute::<_, fn(i64) -> i64>(exec_buf.as_ptr()) };
 
-    // let len = 99_999_999_999_999i64;
-    // let bar = ProgressBar::new(len);
-    // bar.set_style(
-    //     ProgressStyle::default_bar()
-    //         // .template("[{eta_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {per_sec} {msg}")
-    //         .progress_chars("##-"),
-    // );
-
-    let nums_to_test = (11_111_111_111_111i64..=99_999_999_999_999i64);
+    // let nums_to_test = 11_111_111_111_111i64..=99_999_999_999_999i64;
+    let nums_to_test = vec![99995969919326, 48111514719111, 11_111_111_111_111];
     nums_to_test
         .into_par_iter()
-        // .filter(|n| n.into_decimal_digits().any(|d| d == 0))
-        .filter(|n| func(*n) == 0)
+        .filter(|n| dbg!(func(*n)) == 0)
         .for_each(|n| println!("{}", n));
-    // dbg!(found);
 }
