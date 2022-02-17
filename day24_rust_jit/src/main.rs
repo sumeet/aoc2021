@@ -1,9 +1,8 @@
 use dynasm::dynasm;
 use dynasmrt::DynasmApi;
+use radixal::IntoDigits;
 
-use rayon::prelude::{
-    IntoParallelIterator, ParallelIterator,
-};
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
 fn to_rq(reg: char) -> u8 {
     match reg {
@@ -33,6 +32,14 @@ fn parse_val(s: &str) -> Val {
 fn main() {
     let mut ops = dynasmrt::x64::Assembler::new().unwrap();
 
+    // initialize all registers to 0
+    dynasm!(ops
+        ; xor Rq(to_rq('w')), Rq(to_rq('w'))
+        ; xor Rq(to_rq('x')), Rq(to_rq('x'))
+        ; xor Rq(to_rq('y')), Rq(to_rq('y'))
+        ; xor Rq(to_rq('z')), Rq(to_rq('z'))
+    );
+
     let input = include_str!("../input");
     for line in input.lines() {
         let mut split = line.split_whitespace();
@@ -43,8 +50,8 @@ fn main() {
                 let reg = to_rq(split.next().unwrap().chars().next().unwrap());
                 dynasm!(ops
                     ; mov rax, rdi
+                    ; cqo
                     ; mov rcx, 10
-                    ; xor rdx, rdx
                     ; idiv rcx
                     ; mov rdi, rax
                     ; mov Rq(reg), rdx
@@ -83,7 +90,7 @@ fn main() {
                     Val::Imm(n) => {
                         dynasm!(ops
                             ; mov rax, n
-                            ; xor rdx, rdx
+                            ; cqo
                             ; imul Rq(reg)
                             ; mov Rq(reg), rax
                         )
@@ -91,7 +98,7 @@ fn main() {
                     Val::Reg(reg2) => {
                         dynasm!(ops
                             ; mov rax, Rq(reg2)
-                            ; xor rdx, rdx
+                            ; cqo
                             ; imul Rq(reg)
                             ; mov Rq(reg), rax
                         )
@@ -105,7 +112,7 @@ fn main() {
                     Val::Imm(n) => {
                         dynasm!(ops
                             ; mov rax, Rq(reg)
-                            ; xor rdx, rdx
+                            ; cqo
                             ; mov rcx, n
                             ; idiv rcx
                             ; mov Rq(reg), rdx
@@ -114,7 +121,7 @@ fn main() {
                     Val::Reg(reg2) => {
                         dynasm!(ops
                             ; mov rax, Rq(reg)
-                            ; xor rdx, rdx
+                            ; cqo
                             ; idiv Rq(reg2)
                             ; mov Rq(reg), rdx
                         )
@@ -130,7 +137,7 @@ fn main() {
                     Val::Imm(n) => {
                         dynasm!(ops
                             ; mov rax, Rq(reg)
-                            ; xor rdx, rdx
+                            ; cqo
                             ; mov rcx, n
                             ; idiv rcx
                             ; mov Rq(reg), rax
@@ -139,7 +146,7 @@ fn main() {
                     Val::Reg(reg2) => {
                         dynasm!(ops
                             ; mov rax, Rq(reg)
-                            ; xor rdx, rdx
+                            ; cqo
                             ; idiv Rq(reg2)
                             ; mov Rq(reg), rax
                         )
@@ -177,10 +184,9 @@ fn main() {
     let exec_buf = ops.finalize().unwrap();
     let func = unsafe { std::mem::transmute::<_, fn(i64) -> i64>(exec_buf.as_ptr()) };
 
-    // let nums_to_test = 11_111_111_111_111i64..=99_999_999_999_999i64;
-    let nums_to_test = vec![99995969919326, 48111514719111, 11_111_111_111_111];
+    let nums_to_test = 11_111_111_111_111i64..=99_999_999_999_999i64;
     nums_to_test
         .into_par_iter()
-        .filter(|n| dbg!(func(*n)) == 0)
+        .filter(|n| func(*n) == 0)
         .for_each(|n| println!("{}", n));
 }
